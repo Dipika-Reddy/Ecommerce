@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
@@ -45,6 +45,27 @@ const OrderScreen = () => {
   const [verifyPaymentSignature, { isLoading: loadingVerifySignature }] = useVerifyPaymentSignatureMutation();
   const [updateStatus, { isLoading: loadingStatus }] = useUpdateOrderStatusMutation();
   const [refundPayment, { isLoading: loadingRefund }] = useRefundPaymentMutation();
+
+  useEffect(() => {
+    if (order && !order.isPaid && order.paymentMethod === 'UPI') {
+      const timer = setTimeout(async () => {
+        try {
+          await verifyPaymentSignature({
+            razorpay_order_id: `mock_order_${Date.now()}`,
+            razorpay_payment_id: `mock_pay_${Date.now()}`,
+            razorpay_signature: 'mock_sig',
+            orderId: order._id,
+          }).unwrap();
+          toast.success('UPI Payment auto-verified successfully!');
+          refetch();
+        } catch (err) {
+          toast.error(err?.data?.message || 'Automatic transaction verification failed');
+        }
+      }, 5000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [order, verifyPaymentSignature, refetch]);
 
   const [showRefundModal, setShowRefundModal] = useState(false);
   const [refundAmount, setRefundAmount] = useState('');
@@ -258,6 +279,28 @@ const OrderScreen = () => {
                   <Message variant="danger">Not Paid</Message>
                 )}
               </div>
+              {!order.isPaid && order.paymentMethod === 'UPI' && (
+                <div className="mt-4 border-t pt-4 text-center space-y-3">
+                  <div className="bg-slate-50 border border-slate-100 rounded-2xl p-3 inline-block shadow-sm relative">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
+                        `upi://pay?pa=pay@buybee&pn=Buybee%20E-Commerce&am=${order.totalPrice}&cu=INR&tn=Order%20${order._id}`
+                      )}`}
+                      alt="Scan to Pay"
+                      className="mx-auto h-36 w-36"
+                    />
+                    <div className="absolute inset-0 border border-brand-500/25 rounded-2xl animate-pulse pointer-events-none" />
+                  </div>
+                  <h4 className="font-bold text-sm text-slate-800">Scan QR Code to Pay</h4>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                    Open GPay, PhonePe, Paytm, or BHIM app on your phone and scan the QR code to complete transfer.
+                  </p>
+                  <div className="flex justify-center items-center gap-2 text-xs font-semibold text-brand-650 bg-brand-50/50 border border-brand-100 p-2.5 rounded-xl">
+                    <div className="h-3.5 w-3.5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+                    <span>Auto-verifying transaction... please scan and pay</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="rounded-md border bg-white p-4">
@@ -302,7 +345,7 @@ const OrderScreen = () => {
               </div>
 
               {/* Customer-facing payment gateway trigger */}
-              {!order.isPaid && order.paymentMethod !== 'Cash on Delivery' && isOrderOwner && (
+              {!order.isPaid && order.paymentMethod !== 'Cash on Delivery' && order.paymentMethod !== 'UPI' && isOrderOwner && (
                 <button
                   onClick={payHandler}
                   disabled={loadingCreatePayment || loadingVerifySignature}
