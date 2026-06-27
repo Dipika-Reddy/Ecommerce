@@ -38,30 +38,7 @@ const importData = async () => {
     const sellerUser = createdUsers.find((u) => u.email === 'seller@buybee.com') || createdUsers[2];
     const sellerUserId = sellerUser.id;
     console.log(`Seeded ${createdUsers.length} users. Seller ID: ${sellerUserId}`);
-
-    // Seed Products
-    let productCount = 0;
-    for (const prod of products) {
-      await prisma.product.create({
-        data: {
-          name: prod.name,
-          images: prod.images,
-          brand: prod.brand,
-          category: prod.category,
-          description: prod.description,
-          price: prod.price,
-          countInStock: prod.countInStock,
-          rating: prod.rating,
-          numReviews: prod.numReviews,
-          sizes: prod.sizes,
-          colors: prod.colors,
-          userId: sellerUserId,
-        },
-      });
-      productCount++;
-    }
-
-    console.log(`Seeded ${productCount} products.`);
+    console.log('Skipped seeding product catalog.');
     console.log('Data imported successfully!');
     console.log('Customer login -> buyer@buybee.com / buyer123');
     console.log('Seller login   -> seller@buybee.com / seller123  (/seller)');
