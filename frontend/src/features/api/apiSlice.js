@@ -1,10 +1,7 @@
 import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react';
 import { BASE_URL } from '../../constants';
+import { logout } from '../auth/authSlice';
 
-// This is the single source of truth for talking to the Express backend.
-// Every feature-specific API slice (products, users, orders) injects its
-// endpoints into this one, so they all share caching, auth headers, and
-// re-fetch/invalidation behaviour.
 const baseQuery = fetchBaseQuery({
   baseUrl: BASE_URL,
   prepareHeaders: (headers, { getState }) => {
@@ -17,9 +14,18 @@ const baseQuery = fetchBaseQuery({
   },
 });
 
+const baseQueryWithAuthErrorHandling = async (args, api, extraOptions) => {
+  let result = await baseQuery(args, api, extraOptions);
+  if (result.error && result.error.status === 401) {
+    // If the token is invalid/expired or user doesn't exist, automatically log out
+    api.dispatch(logout());
+  }
+  return result;
+};
+
 export const apiSlice = createApi({
   reducerPath: 'api',
-  baseQuery,
+  baseQuery: baseQueryWithAuthErrorHandling,
   tagTypes: ['Product', 'Order', 'User'],
   endpoints: () => ({}), // populated by injectEndpoints in the slices below
 });
