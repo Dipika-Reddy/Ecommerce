@@ -1,0 +1,124 @@
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
+import { isApprovedSeller, isPlatformAdmin, isSuperAdminUser, isSellerUser } from './utils/userRoles';
+
+import Header from './components/Header';
+import Footer from './components/Footer';
+import MobileFooterBar from './components/MobileFooterBar';
+import PrivateRoute from './components/PrivateRoute';
+import AdminRoute from './components/AdminRoute';
+import SuperAdminRoute from './components/SuperAdminRoute';
+import SellerRoute from './components/SellerRoute';
+
+// Landing & auth (bare layout — no shared Header/Footer)
+import LandingScreen from './screens/LandingScreen';
+import LoginScreen from './screens/LoginScreen';
+import SignupScreen from './screens/SignupScreen';
+import RegisterScreen from './screens/RegisterScreen';
+import AdminLoginScreen from './screens/AdminLoginScreen';
+import SuperAdminLoginScreen from './screens/SuperAdminLoginScreen';
+import SellerLoginScreen from './screens/SellerLoginScreen';
+
+// Public catalog
+import HomeScreen from './screens/HomeScreen';
+import ProductScreen from './screens/ProductScreen';
+import CartScreen from './screens/CartScreen';
+
+// Checkout + account (protected)
+import ShippingScreen from './screens/ShippingScreen';
+import PaymentScreen from './screens/PaymentScreen';
+import PlaceOrderScreen from './screens/PlaceOrderScreen';
+import OrderScreen from './screens/OrderScreen';
+import ProfileScreen from './screens/ProfileScreen';
+
+// Seller screens
+import ProductListScreen from './screens/admin/ProductListScreen';
+import ProductEditScreen from './screens/admin/ProductEditScreen';
+import OrderListScreen from './screens/admin/OrderListScreen';
+import AdminPaymentsScreen from './screens/admin/AdminPaymentsScreen';
+
+// Platform admin screens (shared UI for admin + superadmin)
+import UserListScreen from './screens/admin/UserListScreen';
+import VerifySellersScreen from './screens/admin/VerifySellersScreen';
+
+const StandardLayout = ({ children }) => (
+  <div className="flex min-h-screen flex-col">
+    <Header />
+    <main className="flex-1">{children}</main>
+    <Footer />
+    <MobileFooterBar />
+  </div>
+);
+
+const App = () => {
+  const { userInfo } = useSelector((state) => state.auth);
+
+  return (
+    <Routes>
+      {/* Bare-layout routes */}
+      <Route path="/" element={<LandingScreen />} />
+      <Route path="/signup" element={<SignupScreen />} />
+      <Route path="/seller" element={<SellerLoginScreen />} />
+      <Route path="/admin" element={<AdminLoginScreen />} />
+      <Route path="/superadmin" element={<SuperAdminLoginScreen />} />
+
+      {/* Standard layout routes */}
+      <Route path="/home" element={<StandardLayout><HomeScreen /></StandardLayout>} />
+      <Route path="/search/:keyword" element={<StandardLayout><HomeScreen /></StandardLayout>} />
+      <Route path="/product/:id" element={<StandardLayout><ProductScreen /></StandardLayout>} />
+      <Route path="/cart" element={<StandardLayout><CartScreen /></StandardLayout>} />
+
+      <Route path="/login" element={<StandardLayout><LoginScreen /></StandardLayout>} />
+      <Route path="/register" element={<StandardLayout><RegisterScreen /></StandardLayout>} />
+
+      <Route
+        path="/buyer-dashboard"
+        element={userInfo && !isSellerUser(userInfo) && !isPlatformAdmin(userInfo) && !isSuperAdminUser(userInfo) ? <Navigate to="/home" replace /> : <Navigate to="/login" replace />}
+      />
+      <Route
+        path="/seller-dashboard"
+        element={isSellerUser(userInfo) && !isPlatformAdmin(userInfo) && !isSuperAdminUser(userInfo) ? <Navigate to="/seller/productlist" replace /> : <Navigate to="/seller" replace />}
+      />
+      <Route
+        path="/admin-dashboard"
+        element={isPlatformAdmin(userInfo) ? <Navigate to="/admin/userlist" replace /> : <Navigate to="/admin" replace />}
+      />
+      <Route
+        path="/superadmin-dashboard"
+        element={isSuperAdminUser(userInfo) ? <Navigate to="/superadmin/userlist" replace /> : <Navigate to="/superadmin" replace />}
+      />
+
+      <Route element={<PrivateRoute />}>
+        <Route path="/shipping" element={<StandardLayout><ShippingScreen /></StandardLayout>} />
+        <Route path="/payment" element={<StandardLayout><PaymentScreen /></StandardLayout>} />
+        <Route path="/placeorder" element={<StandardLayout><PlaceOrderScreen /></StandardLayout>} />
+        <Route path="/order/:id" element={<StandardLayout><OrderScreen /></StandardLayout>} />
+        <Route path="/profile" element={<StandardLayout><ProfileScreen /></StandardLayout>} />
+        <Route path="/myorders" element={<StandardLayout><ProfileScreen /></StandardLayout>} />
+      </Route>
+
+      {/* Seller dashboard */}
+      <Route element={<SellerRoute />}>
+        <Route path="/seller/productlist" element={<StandardLayout><ProductListScreen /></StandardLayout>} />
+        <Route path="/seller/productlist/:pageNumber" element={<StandardLayout><ProductListScreen /></StandardLayout>} />
+        <Route path="/seller/product/:id/edit" element={<StandardLayout><ProductEditScreen /></StandardLayout>} />
+        <Route path="/seller/orderlist" element={<StandardLayout><OrderListScreen /></StandardLayout>} />
+        <Route path="/seller/paymentlist" element={<StandardLayout><AdminPaymentsScreen /></StandardLayout>} />
+      </Route>
+
+      {/* Platform admin dashboard */}
+      <Route element={<AdminRoute />}>
+        <Route path="/admin/userlist" element={<StandardLayout><UserListScreen /></StandardLayout>} />
+        <Route path="/admin/verifysellers" element={<StandardLayout><VerifySellersScreen /></StandardLayout>} />
+      </Route>
+
+      {/* Super admin dashboard (same pages as admin) */}
+      <Route element={<SuperAdminRoute />}>
+        <Route path="/superadmin/userlist" element={<StandardLayout><UserListScreen /></StandardLayout>} />
+        <Route path="/superadmin/verifysellers" element={<StandardLayout><VerifySellersScreen /></StandardLayout>} />
+      </Route>
+    </Routes>
+  );
+};
+
+export default App;

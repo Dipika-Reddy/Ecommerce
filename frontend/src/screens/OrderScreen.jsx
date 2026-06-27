@@ -1,0 +1,698 @@
+import { useState } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { useSelector } from 'react-redux';
+import { toast } from 'react-toastify';
+import {
+  useGetOrderDetailsQuery,
+  useCreatePaymentOrderMutation,
+  useVerifyPaymentSignatureMutation,
+  useUpdateOrderStatusMutation,
+  useRefundPaymentMutation,
+} from '../features/api/ordersApiSlice';
+import Loader from '../components/Loader';
+import Message from '../components/Message';
+import CustomSelect from '../components/CustomSelect';
+import { isSellerUser, isSuperAdminUser } from '../utils/userRoles';
+
+const STATUS_OPTIONS = ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'];
+
+const statusColor = {
+  Pending: 'bg-gray-100 text-gray-700',
+  Processing: 'bg-blue-100 text-blue-700',
+  Shipped: 'bg-amber-100 text-amber-700',
+  Delivered: 'bg-green-100 text-green-700',
+  Cancelled: 'bg-red-100 text-red-700',
+};
+
+// Dynamically load the Razorpay checkout.js script
+const loadRazorpayScript = () => {
+  return new Promise((resolve) => {
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.onload = () => resolve(true);
+    script.onerror = () => resolve(false);
+    document.body.appendChild(script);
+  });
+};
+
+const OrderScreen = () => {
+  const { id: orderId } = useParams();
+  const { userInfo } = useSelector((state) => state.auth);
+  const canManageOrder = isSellerUser(userInfo) || isSuperAdminUser(userInfo) || userInfo?.isAdmin;
+
+  const { data: order, isLoading, error, refetch } = useGetOrderDetailsQuery(orderId);
+  const [createPaymentOrder, { isLoading: loadingCreatePayment }] = useCreatePaymentOrderMutation();
+  const [verifyPaymentSignature, { isLoading: loadingVerifySignature }] = useVerifyPaymentSignatureMutation();
+  const [updateStatus, { isLoading: loadingStatus }] = useUpdateOrderStatusMutation();
+  const [refundPayment, { isLoading: loadingRefund }] = useRefundPaymentMutation();
+
+  const [showRefundModal, setShowRefundModal] = useState(false);
+  const [refundAmount, setRefundAmount] = useState('');
+  const [refundReason, setRefundReason] = useState('');
+
+  const successPayment = order?.payments?.find(
+    (p) => p.paymentStatus === 'SUCCESS' || p.paymentStatus === 'PARTIALLY_REFUNDED'
+  );
+
+  const handleOpenRefund = () => {
+    if (!successPayment) return;
+    const maxRefund = order.status === 'Cancelled' ? order.itemsPrice : successPayment.amount;
+    setRefundAmount(maxRefund);
+    setRefundReason(order.status === 'Cancelled' ? 'Refund for cancelled order (MRP only)' : 'Admin processed refund');
+    setShowRefundModal(true);
+  };
+
+  const handleRefundSubmit = async (e) => {
+    e.preventDefault();
+    if (!successPayment) return;
+
+    try {
+      await refundPayment({
+        paymentId: successPayment.id,
+        amount: Number(refundAmount),
+        reason: refundReason,
+      }).unwrap();
+      toast.success('Refund processed successfully!');
+      setShowRefundModal(false);
+      refetch();
+    } catch (err) {
+      toast.error(err?.data?.message || 'Failed to process refund');
+    }
+  };
+
+  const [newStatus, setNewStatus] = useState('');
+
+  // Mock Payment Portal State
+  const [showMockGateway, setShowMockGateway] = useState(false);
+  const [mockGatewayStep, setMockGatewayStep] = useState('select'); // 'select', 'processing', 'simulating'
+  const [selectedMockMethod, setSelectedMockMethod] = useState('upi-qr'); // 'upi-qr', 'upi-id', 'card'
+  const [mockCardForm, setMockCardForm] = useState({ number: '', name: '', expiry: '', cvv: '' });
+  const [mockUpiId, setMockUpiId] = useState('');
+  const [mockPaymentOrderData, setMockPaymentOrderData] = useState(null);
+
+  const handleMockPaymentAction = () => {
+    setMockGatewayStep('processing');
+    setTimeout(() => {
+      setMockGatewayStep('simulating');
+    }, 1500);
+  };
+
+  const handleSimulateSuccess = async () => {
+    try {
+      setShowMockGateway(false);
+      await verifyPaymentSignature({
+        razorpay_order_id: mockPaymentOrderData.razorpayOrderId,
+        razorpay_payment_id: `mock_pay_${Date.now()}`,
+        razorpay_signature: 'mock_sig',
+        orderId: orderId,
+      }).unwrap();
+      toast.success('Mock Payment successful — order marked as Paid');
+      refetch();
+    } catch (err) {
+      toast.error(err?.data?.message || 'Payment signature verification failed');
+    }
+  };
+
+  const handleSimulateFailure = () => {
+    setShowMockGateway(false);
+    toast.error('Mock Payment transaction was declined / failed');
+  };
+
+  const getCardBrand = (num) => {
+    if (!num) return 'Card';
+    if (num.startsWith('4')) return 'Visa';
+    if (num.startsWith('5')) return 'Mastercard';
+    if (num.startsWith('6')) return 'RuPay';
+    if (num.startsWith('3')) return 'Amex';
+    return 'Card';
+  };
+
+  // Triggers the Razorpay SDK checkout flow
+  const payHandler = async () => {
+    const res = await loadRazorpayScript();
+    if (!res) {
+      toast.error('Failed to load Razorpay SDK. Please check your internet connection.');
+      return;
+    }
+
+    try {
+      // 1. Create order on the server
+      const paymentOrderData = await createPaymentOrder(orderId).unwrap();
+      
+      // If it is in mock fallback mode
+      if (paymentOrderData.isMock) {
+        setMockPaymentOrderData(paymentOrderData);
+        setMockGatewayStep('select');
+        setSelectedMockMethod('upi-qr');
+        setMockCardForm({ number: '', name: '', expiry: '', cvv: '' });
+        setMockUpiId('');
+        setShowMockGateway(true);
+        return;
+      }
+
+      // 2. Configure and open Razorpay Checkout overlay
+      const options = {
+        key: paymentOrderData.keyId,
+        amount: Math.round(paymentOrderData.amount * 100),
+        currency: paymentOrderData.currency,
+        name: 'Buybee',
+        description: `Payment for Order #${orderId}`,
+        order_id: paymentOrderData.razorpayOrderId,
+        handler: async function (response) {
+          try {
+            await verifyPaymentSignature({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              orderId: orderId,
+            }).unwrap();
+            toast.success('Payment successful — order marked as Paid');
+            refetch();
+          } catch (err) {
+            toast.error(err?.data?.message || 'Payment signature verification failed');
+          }
+        },
+        prefill: {
+          name: userInfo.name,
+          email: userInfo.email,
+        },
+        theme: {
+          color: '#f97316',
+        },
+      };
+
+      const paymentObject = new window.Razorpay(options);
+      paymentObject.open();
+    } catch (err) {
+      toast.error(err?.data?.message || 'Failed to initialize payment gateway');
+    }
+  };
+
+  const updateStatusHandler = async () => {
+    if (!newStatus) return;
+    try {
+      await updateStatus({ orderId, status: newStatus }).unwrap();
+      toast.success(`Order status updated to ${newStatus}`);
+      refetch();
+    } catch (err) {
+      toast.error(err?.data?.message || 'Failed to update status');
+    }
+  };
+
+  if (isLoading) return <Loader />;
+  if (error)
+    return (
+      <div className="mx-auto max-w-5xl px-4 py-6">
+        <Message variant="danger">{error?.data?.message || 'Order not found'}</Message>
+      </div>
+    );
+
+  const isOrderOwner = userInfo._id === order.user._id || userInfo.id === order.user.id || userInfo._id === order.user || userInfo.id === order.user;
+
+  return (
+    <div className="mx-auto max-w-5xl px-4 py-6">
+      <div id="invoice-content" className="bg-transparent pb-6">
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-2">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Order Summary</h1>
+            <p className="text-xs text-gray-400">ID: #{order._id}</p>
+          </div>
+          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusColor[order.status]}`}>
+            {order.status}
+          </span>
+        </div>
+
+        <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-3">
+          <div className="space-y-4 md:col-span-2">
+            <div className="rounded-md border bg-white p-4">
+              <h2 className="mb-2 font-bold text-gray-800">Shipping &amp; Delivery</h2>
+              <p className="text-sm text-gray-600">
+                <strong>Address: </strong>{order.shippingAddress.address}, {order.shippingAddress.city}{' '}
+                {order.shippingAddress.postalCode}, {order.shippingAddress.country}
+              </p>
+              {order.shippingAddress.deliveryMethod && (
+                <p className="text-sm text-gray-600 mt-1">
+                  <strong>Method: </strong>{order.shippingAddress.deliveryMethod}
+                </p>
+              )}
+              <div className="mt-2 no-print">
+                {order.isDelivered ? (
+                  <Message variant="success">Delivered on {new Date(order.deliveredAt).toLocaleString()}</Message>
+                ) : (
+                  <Message variant="info">Not yet delivered</Message>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-md border bg-white p-4">
+              <h2 className="mb-2 font-bold text-gray-800">Payment Method</h2>
+              <p className="text-sm text-gray-600">{order.paymentMethod}</p>
+              <div className="mt-2">
+                {order.isPaid ? (
+                  <Message variant="success">
+                    {order.paymentMethod === 'Cash on Delivery' ? 'Paid on Delivery' : 'Paid'} on {new Date(order.paidAt).toLocaleString()}
+                  </Message>
+                ) : order.paymentMethod === 'Cash on Delivery' ? (
+                  <Message variant="info">Pending Payment — Paid on Delivery</Message>
+                ) : (
+                  <Message variant="danger">Not Paid</Message>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-md border bg-white p-4">
+              <h2 className="mb-3 font-bold text-gray-800">Order Items</h2>
+              <div className="space-y-3">
+                {order.orderItems.map((item) => (
+                  <div key={`${item.product}-${item.size}-${item.color}`} className="flex items-center gap-3">
+                    <img src={item.image} alt={item.name} className="h-12 w-12 rounded object-cover" />
+                    <Link to={`/product/${item.product}`} className="flex-1 text-sm hover:underline">
+                      {item.name} {item.size && `(${item.size})`} {item.color && `(${item.color})`}
+                    </Link>
+                    <span className="text-sm text-gray-600">
+                      {item.qty} x ₹{item.price.toFixed(2)} = ₹{(item.qty * item.price).toFixed(2)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="h-fit space-y-4">
+            <div className="rounded-md border bg-white p-5">
+              <h2 className="mb-4 text-lg font-bold text-gray-800 border-b pb-2">Pricing Breakdown</h2>
+              <div className="space-y-2 text-sm text-gray-600">
+                <div className="flex justify-between">
+                  <span>Items</span>
+                  <span>₹{order.itemsPrice.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Shipping</span>
+                  <span>₹{order.shippingPrice.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Tax</span>
+                  <span>₹{order.taxPrice.toFixed(2)}</span>
+                </div>
+                <hr className="my-2" />
+                <div className="flex justify-between text-base font-bold text-gray-900">
+                  <span>Total</span>
+                  <span>₹{order.totalPrice.toFixed(2)}</span>
+                </div>
+              </div>
+
+              {/* Customer-facing payment gateway trigger */}
+              {!order.isPaid && order.paymentMethod !== 'Cash on Delivery' && isOrderOwner && (
+                <button
+                  onClick={payHandler}
+                  disabled={loadingCreatePayment || loadingVerifySignature}
+                  className="mt-5 w-full rounded-xl bg-orange-500 hover:bg-orange-600 py-3 font-semibold text-white transition duration-150 disabled:opacity-50 flex items-center justify-center gap-2 shadow-md shadow-orange-100 no-print"
+                >
+                  {loadingCreatePayment || loadingVerifySignature ? (
+                    <>
+                      <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      {loadingCreatePayment ? 'Initializing checkout...' : 'Verifying signature...'}
+                    </>
+                  ) : (
+                    'Pay Now with Razorpay'
+                  )}
+                </button>
+              )}
+
+              {/* Print invoice button */}
+              {order.isPaid && (
+                <button
+                  onClick={() => window.print()}
+                  className="mt-4 w-full rounded-xl bg-slate-100 border border-slate-350 hover:bg-slate-200 py-3 font-semibold text-slate-700 transition duration-150 flex items-center justify-center gap-1.5 no-print"
+                >
+                  <svg className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  </svg>
+                  Print Invoice
+                </button>
+              )}
+            </div>
+
+            {/* Admin-only delivery status control */}
+            {canManageOrder && (
+              <div className="rounded-md border bg-white p-5 no-print overflow-hidden">
+                <h2 className="mb-3 text-sm font-bold text-gray-800">Admin: Update Status</h2>
+                <div className="mb-3">
+                  <CustomSelect
+                    value={newStatus}
+                    onChange={(val) => setNewStatus(val)}
+                    options={['', ...STATUS_OPTIONS].map((s) => ({ value: s, label: s || 'Select new status...' }))}
+                    placeholder="Select new status..."
+                  />
+                </div>
+                <button
+                  onClick={updateStatusHandler}
+                  disabled={!newStatus || loadingStatus}
+                  className="w-full rounded-md bg-brand-600 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
+                >
+                  Update Status
+                </button>
+              </div>
+            )}
+
+            {/* Admin-only refund control */}
+            {canManageOrder && successPayment && (
+              <div className="rounded-md border bg-white p-5 no-print">
+                <h2 className="mb-2 text-sm font-bold text-gray-800">Admin: Refund Portal</h2>
+                <p className="text-xs text-slate-500 mb-3">
+                  This order has a successful transaction. You can process refunds directly from this panel.
+                </p>
+                {successPayment.paymentStatus === 'REFUNDED' ? (
+                  <div className="text-xs font-semibold text-blue-600 bg-blue-50 border border-blue-100 p-2 rounded-lg text-center font-bold">
+                    ✓ Fully Refunded
+                  </div>
+                ) : (
+                  <button
+                    onClick={handleOpenRefund}
+                    className="w-full rounded-md bg-red-650 hover:bg-red-700 py-2 text-sm font-semibold text-white transition duration-150 shadow-sm"
+                  >
+                    Issue Refund
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Mock Gateway Modal */}
+      {showMockGateway && mockPaymentOrderData && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-2xl w-full border border-slate-200 shadow-2xl overflow-y-auto md:overflow-hidden flex flex-col md:flex-row h-auto md:h-[500px] max-h-[90vh] md:max-h-none animate-scale-in">
+            {/* Left Column: Payment Method Selection */}
+            {mockGatewayStep === 'select' && (
+              <div className="w-full md:w-2/5 bg-slate-50 border-r border-slate-200 p-6 flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center gap-2 mb-6">
+                    <svg className="h-5 w-5 text-brand-650" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                    <span className="font-bold text-xs text-slate-800 uppercase tracking-wider font-display">buybee Pay</span>
+                  </div>
+                  <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">Methods</h3>
+                  <div className="space-y-2">
+                    <button
+                      onClick={() => setSelectedMockMethod('upi-qr')}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-xs font-bold transition-all ${
+                        selectedMockMethod === 'upi-qr'
+                          ? 'border-brand-500 bg-brand-50 text-brand-650 shadow-sm shadow-brand-50'
+                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                      </svg>
+                      UPI Scan QR
+                    </button>
+                    <button
+                      onClick={() => setSelectedMockMethod('upi-id')}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-xs font-bold transition-all ${
+                        selectedMockMethod === 'upi-id'
+                          ? 'border-brand-500 bg-brand-50 text-brand-650 shadow-sm shadow-brand-50'
+                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.206" />
+                      </svg>
+                      Pay via UPI ID
+                    </button>
+                    <button
+                      onClick={() => setSelectedMockMethod('card')}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl border text-xs font-bold transition-all ${
+                        selectedMockMethod === 'card'
+                          ? 'border-brand-500 bg-brand-50 text-brand-650 shadow-sm shadow-brand-50'
+                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                      </svg>
+                      Debit/Credit Card
+                    </button>
+                  </div>
+                </div>
+                <div className="border-t border-slate-200 pt-4 mt-4">
+                  <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider block mb-0.5">Total Amount</span>
+                  <span className="text-xl font-black text-slate-800">₹{order.totalPrice.toFixed(2)}</span>
+                </div>
+              </div>
+            )}
+
+            {/* Right Column: Dynamic screens depending on status */}
+            <div className="flex-1 p-8 flex flex-col justify-between bg-white">
+              {mockGatewayStep === 'select' && (
+                <>
+                  <div className="flex-1 flex flex-col justify-center">
+                    {selectedMockMethod === 'upi-qr' && (
+                      <div className="text-center space-y-3">
+                        <div className="bg-slate-50 border border-slate-100 rounded-2xl p-3 inline-block shadow-sm relative">
+                          <img
+                            src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(
+                              `upi://pay?pa=pay@buybee&pn=Buybee%20E-Commerce&am=${order.totalPrice}&cu=INR&tn=Order%20${order._id}`
+                            )}`}
+                            alt="Scan to Pay"
+                            className="mx-auto h-36 w-36"
+                          />
+                          <div className="absolute inset-0 border border-brand-500/25 rounded-2xl animate-pulse pointer-events-none" />
+                        </div>
+                        <h4 className="font-bold text-sm text-slate-800">Scan QR Code to Pay</h4>
+                        <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                          Open GPay, PhonePe, Paytm, or BHIM app on your phone and scan the QR code to complete transfer.
+                        </p>
+                      </div>
+                    )}
+
+                    {selectedMockMethod === 'upi-id' && (
+                      <div className="space-y-4 text-left">
+                        <div>
+                          <h4 className="font-bold text-sm text-slate-800 mb-1">Pay using UPI ID</h4>
+                          <p className="text-xs text-slate-400">Enter your virtual payment address (VPA) to trigger a collect notification on your phone.</p>
+                        </div>
+                        <div>
+                          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">UPI VPA</label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="username@okaxis"
+                            value={mockUpiId}
+                            onChange={(e) => setMockUpiId(e.target.value)}
+                            className="w-full bg-slate-50 border border-slate-200 text-slate-700 px-3.5 py-2.5 rounded-xl text-sm outline-none focus:border-brand-500 focus:bg-white font-medium"
+                          />
+                        </div>
+                      </div>
+                    )}
+
+                    {selectedMockMethod === 'card' && (
+                      <div className="space-y-4 flex flex-col items-center">
+                        {/* Visual Card simulation */}
+                        <div className="relative h-28 w-48 rounded-xl bg-gradient-to-br from-slate-800 to-slate-950 p-3 text-white shadow-lg overflow-hidden flex flex-col justify-between border border-slate-700">
+                          <div className="flex justify-between items-start">
+                            <div className="h-5 w-7 bg-amber-400/20 border border-amber-400/40 rounded-md flex items-center justify-center text-[7px] font-bold text-amber-500">CHIP</div>
+                            <span className="font-bold text-[9px] tracking-widest text-orange-400 uppercase">{getCardBrand(mockCardForm.number)}</span>
+                          </div>
+                          <div className="font-mono text-xs tracking-widest text-slate-200 text-center">
+                            {mockCardForm.number.replace(/\s?/g, '').replace(/(\d{4})/g, '$1 ').trim() || '•••• •••• •••• ••••'}
+                          </div>
+                          <div className="flex justify-between items-end text-[9px]">
+                            <div className="truncate max-w-[80px]">
+                              <div className="text-[5px] uppercase tracking-wider text-slate-500 font-semibold">Holder</div>
+                              <div className="font-medium tracking-wide uppercase truncate">{mockCardForm.name || 'YOUR NAME'}</div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-[5px] uppercase tracking-wider text-slate-500 font-semibold">Expiry</div>
+                              <div className="font-medium tracking-wide">{mockCardForm.expiry || 'MM/YY'}</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Card input fields */}
+                        <div className="w-full grid grid-cols-2 gap-2 text-left">
+                          <div className="col-span-2">
+                            <label className="block text-[8px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Card Number</label>
+                            <input
+                              type="text"
+                              maxLength="19"
+                              placeholder="4111 2222 3333 4444"
+                              value={mockCardForm.number}
+                              onChange={(e) => setMockCardForm({ ...mockCardForm, number: e.target.value })}
+                              className="w-full bg-slate-50 border border-slate-200 text-slate-700 px-2.5 py-1.5 rounded-lg text-xs outline-none focus:border-brand-500 focus:bg-white font-medium"
+                            />
+                          </div>
+                          <div className="col-span-2">
+                            <label className="block text-[8px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Cardholder Name</label>
+                            <input
+                              type="text"
+                              placeholder="JOHN DOE"
+                              value={mockCardForm.name}
+                              onChange={(e) => setMockCardForm({ ...mockCardForm, name: e.target.value })}
+                              className="w-full bg-slate-50 border border-slate-200 text-slate-700 px-2.5 py-1.5 rounded-lg text-xs outline-none focus:border-brand-500 focus:bg-white font-medium"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[8px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">Expiry</label>
+                            <input
+                              type="text"
+                              placeholder="12/29"
+                              value={mockCardForm.expiry}
+                              onChange={(e) => setMockCardForm({ ...mockCardForm, expiry: e.target.value })}
+                              className="w-full bg-slate-50 border border-slate-200 text-slate-700 px-2.5 py-1.5 rounded-lg text-xs outline-none focus:border-brand-500 focus:bg-white font-medium"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[8px] font-bold uppercase tracking-wider text-slate-400 mb-0.5">CVV</label>
+                            <input
+                              type="password"
+                              maxLength="3"
+                              placeholder="•••"
+                              value={mockCardForm.cvv}
+                              onChange={(e) => setMockCardForm({ ...mockCardForm, cvv: e.target.value })}
+                              className="w-full bg-slate-50 border border-slate-200 text-slate-700 px-2.5 py-1.5 rounded-lg text-xs outline-none focus:border-brand-500 focus:bg-white font-medium"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex gap-3 mt-6">
+                    <button
+                      onClick={() => setShowMockGateway(false)}
+                      className="flex-1 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 py-2 rounded-xl text-xs font-semibold transition"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleMockPaymentAction}
+                      disabled={
+                        (selectedMockMethod === 'upi-id' && !mockUpiId) ||
+                        (selectedMockMethod === 'card' && (!mockCardForm.number || !mockCardForm.cvv))
+                      }
+                      className="flex-1 bg-brand-600 hover:bg-brand-700 text-white py-2 rounded-xl text-xs font-bold transition disabled:opacity-50 shadow-md shadow-brand-100"
+                    >
+                      {selectedMockMethod === 'upi-qr' ? 'Verify QR Code Transfer' : 'Complete Payment'}
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {mockGatewayStep === 'processing' && (
+                <div className="flex-1 flex flex-col justify-center items-center text-center space-y-4">
+                  <div className="h-10 w-10 border-4 border-brand-500 border-t-transparent rounded-full animate-spin" />
+                  <div>
+                    <h4 className="font-bold text-sm text-slate-800">Verifying Transfer...</h4>
+                    <p className="text-xs text-slate-400 mt-1">Connecting to gateway security nodes. Please wait a moment.</p>
+                  </div>
+                </div>
+              )}
+
+              {mockGatewayStep === 'simulating' && (
+                <div className="flex-1 flex flex-col justify-center space-y-6">
+                  <div className="text-center">
+                    <div className="h-12 w-12 bg-amber-50 border border-amber-200 rounded-full flex items-center justify-center mx-auto mb-3">
+                      <svg className="h-6 w-6 text-amber-500 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <h4 className="font-bold text-sm text-slate-800">Authorize Simulated Payment</h4>
+                    <p className="text-xs text-slate-400 mt-1">Select the transaction outcome to complete this payment verification simulation.</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <button
+                      onClick={handleSimulateSuccess}
+                      className="w-full bg-green-600 hover:bg-green-700 text-white font-bold text-xs py-2.5 rounded-xl transition shadow-md shadow-green-150"
+                    >
+                      Simulate Success (Approve Payment)
+                    </button>
+                    <button
+                      onClick={handleSimulateFailure}
+                      className="w-full bg-red-600 hover:bg-red-700 text-white font-bold text-xs py-2.5 rounded-xl transition shadow-md shadow-red-100"
+                    >
+                      Simulate Failure (Decline Payment)
+                    </button>
+                    <button
+                      onClick={() => setMockGatewayStep('select')}
+                      className="w-full bg-slate-50 hover:bg-slate-100 text-slate-600 font-semibold text-xs py-2 rounded-xl transition border border-slate-200"
+                    >
+                      Back to Methods
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Refund Modal */}
+      {showRefundModal && successPayment && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full border border-slate-200 shadow-2xl p-6 relative animate-scale-in">
+            <h3 className="text-lg font-bold text-slate-900 mb-2">Process Refund</h3>
+            <p className="text-xs text-slate-400 mb-4">Refund payment for order transaction ID: <span className="font-mono">{successPayment.transactionId || successPayment.id}</span></p>
+
+            <form onSubmit={handleRefundSubmit} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5 font-semibold">
+                  Refund Amount (Max ₹{order.status === 'Cancelled' ? order.itemsPrice.toFixed(2) : successPayment.amount.toFixed(2)})
+                </label>
+                {order.status === 'Cancelled' && (
+                  <p className="text-[11px] text-red-500 font-semibold mb-2 leading-relaxed text-left">
+                    ⚠️ Order Cancelled: Tax (₹{order.taxPrice.toFixed(2)}) and Shipping fee (₹{order.shippingPrice.toFixed(2)}) are non-refundable. Only the items MRP (₹{order.itemsPrice.toFixed(2)}) will be returned.
+                  </p>
+                )}
+                <input
+                  type="number"
+                  step="0.01"
+                  required
+                  max={order.status === 'Cancelled' ? order.itemsPrice : successPayment.amount}
+                  value={refundAmount}
+                  onChange={(e) => setRefundAmount(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 text-slate-700 px-3.5 py-2.5 rounded-xl text-sm outline-none focus:border-brand-500 focus:bg-white font-medium"
+                />
+              </div>
+
+              <div className="text-left">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5 font-semibold">Reason for Refund</label>
+                <textarea
+                  required
+                  rows="3"
+                  value={refundReason}
+                  onChange={(e) => setRefundReason(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 text-slate-700 px-3.5 py-2.5 rounded-xl text-sm outline-none focus:border-brand-500 focus:bg-white resize-none font-medium text-xs"
+                  placeholder="Enter reason for processing this refund..."
+                ></textarea>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowRefundModal(false);
+                  }}
+                  className="flex-1 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-250 py-2 rounded-xl text-xs font-semibold transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loadingRefund}
+                  className="flex-1 bg-red-650 hover:bg-red-700 text-white py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-md shadow-red-100 disabled:opacity-50"
+                >
+                  {loadingRefund ? 'Processing...' : 'Confirm Refund'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default OrderScreen;

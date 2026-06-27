@@ -1,0 +1,105 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  @apply bg-slate-50 text-slate-800 min-h-screen overflow-x-hidden;
+  background-image: 
+    radial-gradient(at 10% 20%, rgba(253, 186, 116, 0.06) 0px, transparent 50%),
+    radial-gradient(at 90% 80%, rgba(59, 130, 246, 0.05) 0px, transparent 50%),
+    radial-gradient(at 50% 50%, rgba(16, 185, 129, 0.03) 0px, transparent 60%);
+  line-height: 1.6;
+  font-family: system-ui, sans-serif;
+}
+
+/* Global box-sizing — ensures padding/border never cause overflow */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+/* Prevent <select> elements from ever overflowing their container */
+select {
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* Prevent absolutely-positioned dropdowns from going off-screen */
+[role="listbox"],
+[role="menu"],
+.dropdown-panel {
+  max-width: min(100vw - 1rem, 300px);
+}
+
+/* Smooth dropdown open animation */
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.97) translateY(-4px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.animate-scale-in {
+  animation: scale-in 0.15s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(40px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* Custom Scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(15, 23, 42, 0.08) transparent;
+}
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.08);
+  border-radius: 10px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: rgba(59, 130, 246, 0.4);
+}
+
+/* Simple line-clamp fallback for product card titles/descriptions */
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Print Invoice Media Queries */
+@media print {
+  body {
+    background: white !important;
+    background-image: none !important;
+    color: black !important;
+  }
+  header, footer, button, select, nav, .no-print {
+    display: none !important;
+  }
+  body * {
+    visibility: hidden;
+  }
+  #invoice-content, #invoice-content * {
+    visibility: visible;
+  }
+  #invoice-content {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    box-shadow: none !important;
+    border: none !important;
+  }
+}
