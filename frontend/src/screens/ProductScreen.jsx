@@ -23,6 +23,7 @@ const ProductScreen = () => {
   const [createReview, { isLoading: loadingReview }] = useCreateReviewMutation();
 
   const [activeImage, setActiveImage] = useState(0);
+  const [isZoomed, setIsZoomed] = useState(false);
   const [qty, setQty] = useState(1);
   const [size, setSize] = useState('');
   const [color, setColor] = useState('');
@@ -91,11 +92,14 @@ const ProductScreen = () => {
       <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
         {/* --- Image gallery --- */}
         <div>
-          <div className="aspect-square overflow-hidden rounded-lg border bg-gray-100">
+          <div 
+            className="aspect-square overflow-hidden rounded-lg border bg-white flex items-center justify-center cursor-zoom-in"
+            onClick={() => setIsZoomed(true)}
+          >
             <img
               src={product.images[activeImage]}
               alt={product.name}
-              className="h-full w-full object-cover"
+              className="h-full w-full object-contain p-2"
             />
           </div>
           {product.images.length > 1 && (
@@ -275,6 +279,29 @@ const ProductScreen = () => {
           )}
         </div>
       </div>
+
+      {/* --- Zoom Modal --- */}
+      {isZoomed && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-90 p-4 cursor-zoom-out"
+          onClick={() => setIsZoomed(false)}
+        >
+          <img
+            src={product.images[activeImage]}
+            alt={product.name}
+            className="max-h-full max-w-full object-contain"
+          />
+          <button 
+            className="absolute top-6 right-6 flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-xl font-bold text-white hover:bg-white/40"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsZoomed(false);
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
     </div>
   );
 };
