@@ -37,7 +37,7 @@ const ProductListScreen = () => {
         images: [],
       }).unwrap();
       toast.success('Draft product created — edit it below');
-      window.location.href = `${catalogBase}/product/${newProduct._id}/edit`;
+      window.location.href = `${catalogBase}/product/${newProduct._id}/edit?isNew=true`;
     } catch (err) {
       toast.error(err?.data?.message || 'Failed to create product');
     }

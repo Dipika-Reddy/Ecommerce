@@ -6,6 +6,7 @@ import {
   useGetProductDetailsQuery,
   useUpdateProductMutation,
   useUploadProductImageMutation,
+  useDeleteProductMutation,
 } from '../../features/api/productsApiSlice';
 import { getCatalogBaseFromPath } from '../../utils/userRoles';
 import Loader from '../../components/Loader';
@@ -14,22 +15,25 @@ import CustomSelect from '../../components/CustomSelect';
 
 const ProductEditScreen = () => {
   const { id: productId } = useParams();
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
+  const searchParams = new URLSearchParams(search);
+  const isNew = searchParams.get('isNew') === 'true';
   const catalogBase = getCatalogBaseFromPath(pathname);
   const navigate = useNavigate();
 
   const { data: product, isLoading, error } = useGetProductDetailsQuery(productId);
   const [updateProduct, { isLoading: loadingUpdate }] = useUpdateProductMutation();
   const [uploadProductImage, { isLoading: loadingUpload }] = useUploadProductImageMutation();
+  const [deleteProduct] = useDeleteProductMutation();
 
   const { userInfo } = useSelector((state) => state.auth);
 
   const [name, setName] = useState('');
-  const [price, setPrice] = useState(0);
+  const [price, setPrice] = useState('');
   const [brand, setBrand] = useState('');
   const [category, setCategory] = useState('');
   const [subCategory, setSubCategory] = useState('');
-  const [countInStock, setCountInStock] = useState(0);
+  const [countInStock, setCountInStock] = useState('');
   const [description, setDescription] = useState('');
   const [images, setImages] = useState([]);
   const [sizes, setSizes] = useState('');
@@ -45,18 +49,31 @@ const ProductEditScreen = () => {
         return;
       }
 
-      setName(product.name);
-      setPrice(product.price);
-      setBrand(product.brand);
-      setCategory(product.category);
-      setSubCategory(product.subCategory || '');
-      setCountInStock(product.countInStock);
-      setDescription(product.description);
-      setImages(product.images || []);
-      setSizes((product.sizes || []).join(', '));
-      setColors((product.colors || []).join(', '));
+      if (isNew) {
+        setName('');
+        setPrice('');
+        setBrand('');
+        setCategory(product.category || 'Fashion');
+        setSubCategory(product.subCategory || '');
+        setCountInStock('');
+        setDescription('');
+        setImages((product.images || []).filter((img) => img !== '/uploads/sample-product.jpg'));
+        setSizes('');
+        setColors('');
+      } else {
+        setName(product.name);
+        setPrice(product.price);
+        setBrand(product.brand);
+        setCategory(product.category);
+        setSubCategory(product.subCategory || '');
+        setCountInStock(product.countInStock);
+        setDescription(product.description);
+        setImages((product.images || []).filter((img) => img !== '/uploads/sample-product.jpg'));
+        setSizes((product.sizes || []).join(', '));
+        setColors((product.colors || []).join(', '));
+      }
     }
-  }, [product, userInfo, navigate]);
+  }, [product, userInfo, navigate, isNew]);
 
   // --- Simulated image upload: file goes to the backend's /api/upload (multer
   //     local-disk storage), the returned URL is appended to the images array.
@@ -80,17 +97,29 @@ const ProductEditScreen = () => {
     setImages((prev) => prev.filter((_, i) => i !== idx));
   };
 
+  const cancelHandler = async () => {
+    if (isNew) {
+      try {
+        await deleteProduct(productId).unwrap();
+        toast.info('Product creation cancelled');
+      } catch (err) {
+        console.error('Failed to delete draft product:', err);
+      }
+    }
+    navigate(`${catalogBase}/productlist`);
+  };
+
   const submitHandler = async (e) => {
     e.preventDefault();
     try {
       await updateProduct({
         productId,
         name,
-        price: Number(price),
+        price: price === '' ? 0 : Number(price),
         brand,
         category,
         subCategory,
-        countInStock: Number(countInStock),
+        countInStock: countInStock === '' ? 0 : Number(countInStock),
         description,
         images,
         sizes: sizes.split(',').map((s) => s.trim()).filter(Boolean),
@@ -105,10 +134,17 @@ const ProductEditScreen = () => {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-6">
-      <Link to={`${catalogBase}/productlist`} className="mb-4 inline-block text-sm text-brand-600 hover:underline">
-        ← Back to products
-      </Link>
-      <h1 className="mb-5 text-2xl font-bold text-gray-900">Edit Product</h1>
+      <div className="mb-5 flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-900">{isNew ? 'Create Product' : 'Edit Product'}</h1>
+        <button
+          type="button"
+          onClick={cancelHandler}
+          className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200"
+          title="Cancel"
+        >
+          ✕
+        </button>
+      </div>
 
       {loadingUpdate && <Loader />}
 
@@ -123,6 +159,7 @@ const ProductEditScreen = () => {
             <input
               value={name}
               onChange={(e) => setName(e.target.value)}
+              placeholder="e.g. New Product"
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
             />
           </div>
@@ -135,6 +172,7 @@ const ProductEditScreen = () => {
                 step="0.01"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
+                placeholder="e.g. 99.99"
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
               />
             </div>
@@ -144,6 +182,7 @@ const ProductEditScreen = () => {
                 type="number"
                 value={countInStock}
                 onChange={(e) => setCountInStock(e.target.value)}
+                placeholder="e.g. 10"
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
               />
             </div>
@@ -155,6 +194,7 @@ const ProductEditScreen = () => {
               <input
                 value={brand}
                 onChange={(e) => setBrand(e.target.value)}
+                placeholder="e.g. Sample Brand"
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
               />
             </div>
@@ -185,7 +225,7 @@ const ProductEditScreen = () => {
               <input
                 value={sizes}
                 onChange={(e) => setSizes(e.target.value)}
-                placeholder="S, M, L, XL"
+                placeholder="e.g. S, M, L, XL"
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
               />
             </div>
@@ -194,7 +234,7 @@ const ProductEditScreen = () => {
               <input
                 value={colors}
                 onChange={(e) => setColors(e.target.value)}
-                placeholder="Black, Navy"
+                placeholder="e.g. Black, Navy"
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
               />
             </div>
@@ -205,6 +245,7 @@ const ProductEditScreen = () => {
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
+              placeholder="e.g. Product description..."
               rows={4}
               className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
             />
@@ -230,12 +271,21 @@ const ProductEditScreen = () => {
             {loadingUpload && <span className="ml-2 text-xs text-gray-500">Uploading...</span>}
           </div>
 
-          <button
-            type="submit"
-            className="w-full rounded-md bg-brand-600 py-2.5 font-semibold text-white hover:bg-brand-700"
-          >
-            Save Product
-          </button>
+          <div className="flex gap-4">
+            <button
+              type="button"
+              onClick={cancelHandler}
+              className="w-1/3 rounded-md bg-gray-100 py-2.5 font-semibold text-gray-700 hover:bg-gray-200"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="w-2/3 rounded-md bg-brand-600 py-2.5 font-semibold text-white hover:bg-brand-700"
+            >
+              {isNew ? 'Create & Save Product' : 'Save Product'}
+            </button>
+          </div>
         </form>
       )}
     </div>
