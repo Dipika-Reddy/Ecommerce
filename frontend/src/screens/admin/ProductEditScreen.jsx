@@ -36,7 +36,7 @@ const ProductEditScreen = () => {
   const [countInStock, setCountInStock] = useState('');
   const [description, setDescription] = useState('');
   const [images, setImages] = useState([]);
-  const [sizes, setSizes] = useState('');
+  const [sizes, setSizes] = useState([]);
   const [colors, setColors] = useState('');
 
   useEffect(() => {
@@ -58,7 +58,7 @@ const ProductEditScreen = () => {
         setCountInStock('');
         setDescription('');
         setImages((product.images || []).filter((img) => img !== '/uploads/sample-product.jpg'));
-        setSizes('');
+        setSizes([]);
         setColors('');
       } else {
         setName(product.name);
@@ -69,7 +69,7 @@ const ProductEditScreen = () => {
         setCountInStock(product.countInStock);
         setDescription(product.description);
         setImages((product.images || []).filter((img) => img !== '/uploads/sample-product.jpg'));
-        setSizes((product.sizes || []).join(', '));
+        setSizes(product.sizes || []);
         setColors((product.colors || []).join(', '));
       }
     }
@@ -122,7 +122,7 @@ const ProductEditScreen = () => {
         countInStock: countInStock === '' ? 0 : Number(countInStock),
         description,
         images,
-        sizes: sizes.split(',').map((s) => s.trim()).filter(Boolean),
+        sizes,
         colors: colors.split(',').map((c) => c.trim()).filter(Boolean),
       }).unwrap();
       toast.success('Product updated');
@@ -221,13 +221,26 @@ const ProductEditScreen = () => {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Sizes (comma-separated)</label>
-              <input
-                value={sizes}
-                onChange={(e) => setSizes(e.target.value)}
-                placeholder="e.g. S, M, L, XL"
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-              />
+              <label className="mb-2 block text-sm font-medium text-gray-700">Sizes</label>
+              <div className="flex flex-wrap gap-x-4 gap-y-2 mt-1">
+                {['S', 'M', 'L', 'XL', 'XXL', 'FREE'].map((sz) => (
+                  <label key={sz} className="flex items-center gap-1.5 text-sm cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={sizes.includes(sz)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSizes([...sizes, sz]);
+                        } else {
+                          setSizes(sizes.filter((s) => s !== sz));
+                        }
+                      }}
+                      className="h-4 w-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500 cursor-pointer"
+                    />
+                    {sz}
+                  </label>
+                ))}
+              </div>
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-gray-700">Colors (comma-separated)</label>
