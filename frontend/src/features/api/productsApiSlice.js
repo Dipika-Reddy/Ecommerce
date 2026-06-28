@@ -5,9 +5,9 @@ export const productsApiSlice = apiSlice.injectEndpoints({
   endpoints: (builder) => ({
     // GET /api/products?keyword=&category=&sortBy=&pageNumber=&adminMode=
     getProducts: builder.query({
-      query: ({ keyword = '', category = 'All', sortBy = 'newest', pageNumber = 1, adminMode = false } = {}) => ({
+      query: ({ keyword = '', category = 'All', subCategory = 'All', sortBy = 'newest', pageNumber = 1, adminMode = false } = {}) => ({
         url: PRODUCTS_URL,
-        params: { keyword, category, sortBy, pageNumber, adminMode },
+        params: { keyword, category, subCategory, sortBy, pageNumber, adminMode },
       }),
       providesTags: (result) =>
         result
@@ -20,7 +20,10 @@ export const productsApiSlice = apiSlice.injectEndpoints({
     }),
 
     getProductCategories: builder.query({
-      query: () => `${PRODUCTS_URL}/categories`,
+      query: (category) => ({
+        url: `${PRODUCTS_URL}/categories`,
+        params: category ? { category } : {},
+      }),
     }),
 
     getProductDetails: builder.query({

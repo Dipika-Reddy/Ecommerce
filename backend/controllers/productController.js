@@ -33,6 +33,10 @@ const getProducts = asyncHandler(async (req, res) => {
     where.category = req.query.category;
   }
 
+  if (req.query.subCategory && req.query.subCategory !== 'All') {
+    where.subCategory = req.query.subCategory;
+  }
+
   let orderBy = { createdAt: 'desc' }; // default: newest first
   switch (req.query.sortBy) {
     case 'price_asc':
@@ -82,17 +86,29 @@ const getProducts = asyncHandler(async (req, res) => {
   });
 });
 
-// @desc    Fetch a list of distinct categories (for the filter sidebar)
+// @desc    Fetch a list of distinct categories (or subcategories if category is specified)
 // @route   GET /api/products/categories
 // @access  Public
 const getProductCategories = asyncHandler(async (req, res) => {
-  const categories = await prisma.product.findMany({
-    distinct: ['category'],
-    select: {
-      category: true,
-    },
-  });
-  res.json(categories.map((c) => c.category));
+  const { category } = req.query;
+  if (category && category !== 'All') {
+    const subCategories = await prisma.product.findMany({
+      where: { category },
+      distinct: ['subCategory'],
+      select: {
+        subCategory: true,
+      },
+    });
+    res.json(subCategories.map((s) => s.subCategory).filter(Boolean));
+  } else {
+    const categories = await prisma.product.findMany({
+      distinct: ['category'],
+      select: {
+        category: true,
+      },
+    });
+    res.json(categories.map((c) => c.category));
+  }
 });
 
 // @desc    Fetch a single product by id
@@ -127,7 +143,7 @@ const getProductById = asyncHandler(async (req, res) => {
 // @route   POST /api/products
 // @access  Private/Admin
 const createProduct = asyncHandler(async (req, res) => {
-  const { name, price, images, brand, category, countInStock, description, sizes, colors } =
+  const { name, price, images, brand, category, subCategory, countInStock, description, sizes, colors } =
     req.body;
 
   if (!name || !brand || !category || !description) {
@@ -143,6 +159,7 @@ const createProduct = asyncHandler(async (req, res) => {
       images: images && images.length ? images : ['/uploads/sample-product.jpg'],
       brand,
       category,
+      subCategory: subCategory || null,
       countInStock: countInStock ? Number(countInStock) : 0,
       numReviews: 0,
       description,
@@ -162,7 +179,7 @@ const createProduct = asyncHandler(async (req, res) => {
 // @route   PUT /api/products/:id
 // @access  Private/Admin
 const updateProduct = asyncHandler(async (req, res) => {
-  const { name, price, images, brand, category, countInStock, description, sizes, colors } =
+  const { name, price, images, brand, category, subCategory, countInStock, description, sizes, colors } =
     req.body;
 
   const product = await prisma.product.findUnique({
@@ -188,6 +205,7 @@ const updateProduct = asyncHandler(async (req, res) => {
       images: images && images.length ? images : product.images,
       brand: brand ?? product.brand,
       category: category ?? product.category,
+      subCategory: subCategory !== undefined ? subCategory : product.subCategory,
       countInStock: countInStock !== undefined ? Number(countInStock) : product.countInStock,
       description: description ?? product.description,
       sizes: sizes ?? product.sizes,

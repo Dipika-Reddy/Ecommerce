@@ -35,6 +35,7 @@ model Product {
   images       String[]
   brand        String
   category     String
+  subCategory  String?
   description  String
   rating       Float       @default(0)
   numReviews   Int         @default(0)

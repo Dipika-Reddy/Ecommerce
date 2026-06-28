@@ -28,6 +28,7 @@ const ProductEditScreen = () => {
   const [price, setPrice] = useState(0);
   const [brand, setBrand] = useState('');
   const [category, setCategory] = useState('');
+  const [subCategory, setSubCategory] = useState('');
   const [countInStock, setCountInStock] = useState(0);
   const [description, setDescription] = useState('');
   const [images, setImages] = useState([]);
@@ -48,6 +49,7 @@ const ProductEditScreen = () => {
       setPrice(product.price);
       setBrand(product.brand);
       setCategory(product.category);
+      setSubCategory(product.subCategory || '');
       setCountInStock(product.countInStock);
       setDescription(product.description);
       setImages(product.images || []);
@@ -87,6 +89,7 @@ const ProductEditScreen = () => {
         price: Number(price),
         brand,
         category,
+        subCategory,
         countInStock: Number(countInStock),
         description,
         images,
@@ -164,6 +167,16 @@ const ProductEditScreen = () => {
                 placeholder="Select category..."
               />
             </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">Subcategory</label>
+            <input
+              value={subCategory}
+              onChange={(e) => setSubCategory(e.target.value)}
+              placeholder="e.g. jewellery, footwear, clothes"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+            />
           </div>
 
           <div className="grid grid-cols-2 gap-4">

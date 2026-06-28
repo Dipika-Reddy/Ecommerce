@@ -37,6 +37,7 @@ const HomeScreen = () => {
 
   // Read filters from URL query string (reactive — updates on URL change)
   const category = searchParams.get('category') || 'All';
+  const subCategory = searchParams.get('subCategory') || 'All';
   const sortBy   = searchParams.get('sortBy')   || 'newest';
 
   // ── Infinite scroll state ──────────────────────────────────────
@@ -45,17 +46,18 @@ const HomeScreen = () => {
   const [hasMore, setHasMore]       = useState(true);
   const sentinelRef                 = useRef(null);
   // Track the filter key so we know when to reset
-  const filterKey = `${keyword || ''}|${category}|${sortBy}`;
+  const filterKey = `${keyword || ''}|${category}|${subCategory}|${sortBy}`;
   const prevFilterKey = useRef(filterKey);
 
   // ── API ────────────────────────────────────────────────────────
   const { data, isLoading, isFetching, error } = useGetProductsQuery({
     keyword,
     category,
+    subCategory,
     sortBy,
     pageNumber: page,
   });
-  const { data: categories } = useGetProductCategoriesQuery();
+  const { data: categories } = useGetProductCategoriesQuery(category);
 
   // ── Reset accumulator when any filter / search / sort changes ──
   useEffect(() => {
@@ -141,13 +143,21 @@ const HomeScreen = () => {
 
   const activeDot = (currentIndex - 1 + BANNER_SLIDES.length) % BANNER_SLIDES.length;
 
-  // ── Helpers ────────────────────────────────────────────────────
   const updateQuery = (key, value) => {
     const params = new URLSearchParams(window.location.search);
-    if (value === 'All' && key === 'category') {
-      params.delete('category');
+    if (key === 'category') {
+      params.delete('subCategory');
+      if (value === 'All') {
+        params.delete('category');
+      } else {
+        params.set('category', value);
+      }
     } else {
-      params.set(key, value);
+      if (value === 'All') {
+        params.delete(key);
+      } else {
+        params.set(key, value);
+      }
     }
     navigate(`${window.location.pathname}?${params.toString()}`);
   };
@@ -353,12 +363,18 @@ const HomeScreen = () => {
             <div className="flex flex-wrap items-center gap-3 text-xs font-semibold">
               {/* Category selector */}
               <div className="flex items-center gap-2 min-w-0">
-                <span className="text-gray-500 shrink-0">Category:</span>
+                <span className="text-gray-500 shrink-0">{category !== 'All' ? 'Subcategory:' : 'Category:'}</span>
                 <CustomSelect
-                  value={category}
-                  onChange={(v) => updateQuery('category', v)}
+                  value={category !== 'All' ? subCategory : category}
+                  onChange={(v) => {
+                    if (category !== 'All') {
+                      updateQuery('subCategory', v);
+                    } else {
+                      updateQuery('category', v);
+                    }
+                  }}
                   options={[
-                    { value: 'All', label: 'All Categories' },
+                    { value: 'All', label: category !== 'All' ? 'All Subcategories' : 'All Categories' },
                     ...(categories || []).map((cat) => ({ value: cat, label: cat })),
                   ]}
                 />
