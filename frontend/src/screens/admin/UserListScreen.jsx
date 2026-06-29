@@ -132,6 +132,10 @@ const UserListScreen = () => {
                         <span className="inline-flex rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-800 border border-red-200">
                           {isSuperAdminUser(userInfo) ? 'Superadmin (Locked)' : 'Admin (Locked)'}
                         </span>
+                      ) : (!isSuperAdminUser(userInfo) && (user.isSuperAdmin || user.isAdmin)) ? (
+                        <span className="inline-flex rounded-full bg-gray-100 px-3 py-1 text-xs font-bold text-gray-800 border border-gray-200">
+                          {user.isSuperAdmin ? 'Superadmin (Protected)' : 'Admin (Protected)'}
+                        </span>
                       ) : (
                         <CustomSelect
                           value={currentRole}

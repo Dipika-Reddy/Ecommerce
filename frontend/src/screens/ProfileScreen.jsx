@@ -377,6 +377,7 @@ const ProfileScreen = () => {
         </div>
 
         {/* --- Order history & Payment History --- */}
+        {!(userInfo.isAdmin || userInfo.isSuperAdmin || userInfo.sellerStatus === 'Approved' || userInfo.isDeliveryAgent) && (
         <div className="md:col-span-2 space-y-8">
           <div>
             <h1 className="mb-4 text-xl font-bold text-gray-900">Order History</h1>
@@ -498,6 +499,7 @@ const ProfileScreen = () => {
             )}
           </div>
         </div>
+        )}
       </div>
       {/* Cancellation Refund Details Modal */}
       {cancelModalOpen && (() => {

@@ -38,6 +38,7 @@ import ProductListScreen from './screens/admin/ProductListScreen';
 import ProductEditScreen from './screens/admin/ProductEditScreen';
 import OrderListScreen from './screens/admin/OrderListScreen';
 import AdminPaymentsScreen from './screens/admin/AdminPaymentsScreen';
+import DeliveryPaymentsScreen from './screens/admin/DeliveryPaymentsScreen';
 
 // Platform admin screens (shared UI for admin + superadmin)
 import UserListScreen from './screens/admin/UserListScreen';
@@ -116,7 +117,7 @@ const App = () => {
       {/* Delivery Agent dashboard */}
       <Route element={<DeliveryRoute />}>
         <Route path="/delivery/orderlist" element={<StandardLayout><OrderListScreen /></StandardLayout>} />
-        <Route path="/delivery/paymentlist" element={<StandardLayout><AdminPaymentsScreen /></StandardLayout>} />
+        <Route path="/delivery/paymentlist" element={<StandardLayout><DeliveryPaymentsScreen /></StandardLayout>} />
       </Route>
 
       {/* Platform admin dashboard */}

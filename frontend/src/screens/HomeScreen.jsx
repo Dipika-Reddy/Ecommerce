@@ -72,9 +72,12 @@ const HomeScreen = () => {
   // ── Append incoming page of products ──────────────────────────
   useEffect(() => {
     if (!data?.products) return;
-    setAllProducts((prev) =>
-      page === 1 ? data.products : [...prev, ...data.products]
-    );
+    setAllProducts((prev) => {
+      if (page === 1) return data.products;
+      const existingIds = new Set(prev.map((p) => p._id));
+      const newProducts = data.products.filter((p) => !existingIds.has(p._id));
+      return [...prev, ...newProducts];
+    });
     setHasMore(data.page < data.pages);
   }, [data, page]);
 

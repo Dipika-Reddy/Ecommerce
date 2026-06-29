@@ -208,8 +208,7 @@ const getOrderById = asyncHandler(async (req, res) => {
   res.json(formattedOrder);
 });
 
-// @desc    Mark an order as paid — simulates a payment gateway callback
-//          (mock Stripe/PayPal: client calls this once the mock charge "succeeds")
+// @desc    Mark an order as paid (simulates a payment gateway callback or delivery agent payment)
 // @route   PUT /api/orders/:id/pay
 // @access  Private
 const updateOrderToPaid = asyncHandler(async (req, res) => {
@@ -222,23 +221,58 @@ const updateOrderToPaid = asyncHandler(async (req, res) => {
     throw new Error('Order not found');
   }
 
+  const paymentMethod = req.body.method || order.paymentMethod;
+  const paymentAmount = req.body.amount ? Number(req.body.amount) : order.totalPrice;
+
   const updatedOrder = await prisma.order.update({
     where: { id: req.params.id },
     data: {
       isPaid: true,
       paidAt: new Date(),
+      paymentMethod,
       status: order.status === 'Pending' ? 'Processing' : order.status,
       paymentResult: {
         id: req.body.id || `MOCK-${Date.now()}`,
         status: req.body.status || 'COMPLETED',
         update_time: req.body.update_time || new Date().toISOString(),
         email_address: req.body.email_address || req.user.email,
+        amount: paymentAmount,
+        method: paymentMethod,
       },
     },
     include: {
       orderItems: true,
     },
   });
+
+  // Sync to Payment model
+  const existingPayment = await prisma.payment.findUnique({
+    where: { orderId: order.id }
+  });
+
+  if (existingPayment) {
+    await prisma.payment.update({
+      where: { orderId: order.id },
+      data: {
+        paymentStatus: 'SUCCESS',
+        paymentMethod,
+        amount: paymentAmount,
+        transactionId: req.body.id || existingPayment.transactionId || `PAY-${Date.now()}`,
+      }
+    });
+  } else {
+    await prisma.payment.create({
+      data: {
+        userId: order.userId,
+        orderId: order.id,
+        amount: paymentAmount,
+        paymentMethod,
+        paymentStatus: 'SUCCESS',
+        transactionId: req.body.id || `PAY-${Date.now()}`,
+        gateway: paymentMethod.includes('COD') || paymentMethod.includes('Cash') ? 'COD' : 'RAZORPAY',
+      }
+    });
+  }
 
   res.json(formatOrder(updatedOrder));
 });
