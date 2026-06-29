@@ -9,6 +9,7 @@ import PrivateRoute from './components/PrivateRoute';
 import AdminRoute from './components/AdminRoute';
 import SuperAdminRoute from './components/SuperAdminRoute';
 import SellerRoute from './components/SellerRoute';
+import DeliveryRoute from './components/DeliveryRoute';
 
 // Landing & auth (bare layout — no shared Header/Footer)
 import LandingScreen from './screens/LandingScreen';
@@ -73,7 +74,7 @@ const App = () => {
 
       <Route
         path="/buyer-dashboard"
-        element={userInfo && !isSellerUser(userInfo) && !isPlatformAdmin(userInfo) && !isSuperAdminUser(userInfo) ? <Navigate to="/home" replace /> : <Navigate to="/login" replace />}
+        element={userInfo && !isSellerUser(userInfo) && !isPlatformAdmin(userInfo) && !isSuperAdminUser(userInfo) && !userInfo.isDeliveryAgent ? <Navigate to="/home" replace /> : <Navigate to="/login" replace />}
       />
       <Route
         path="/seller-dashboard"
@@ -86,6 +87,10 @@ const App = () => {
       <Route
         path="/superadmin-dashboard"
         element={isSuperAdminUser(userInfo) ? <Navigate to="/superadmin/userlist" replace /> : <Navigate to="/superadmin" replace />}
+      />
+      <Route
+        path="/delivery-dashboard"
+        element={userInfo?.isDeliveryAgent ? <Navigate to="/delivery/orderlist" replace /> : <Navigate to="/login" replace />}
       />
 
       <Route element={<PrivateRoute />}>
@@ -104,6 +109,12 @@ const App = () => {
         <Route path="/seller/product/:id/edit" element={<StandardLayout><ProductEditScreen /></StandardLayout>} />
         <Route path="/seller/orderlist" element={<StandardLayout><OrderListScreen /></StandardLayout>} />
         <Route path="/seller/paymentlist" element={<StandardLayout><AdminPaymentsScreen /></StandardLayout>} />
+      </Route>
+
+      {/* Delivery Agent dashboard */}
+      <Route element={<DeliveryRoute />}>
+        <Route path="/delivery/orderlist" element={<StandardLayout><OrderListScreen /></StandardLayout>} />
+        <Route path="/delivery/paymentlist" element={<StandardLayout><AdminPaymentsScreen /></StandardLayout>} />
       </Route>
 
       {/* Platform admin dashboard */}

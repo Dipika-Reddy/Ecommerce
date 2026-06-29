@@ -5,7 +5,7 @@ import { useLogoutMutation } from '../features/api/usersApiSlice';
 import { useGetProductCategoriesQuery } from '../features/api/productsApiSlice';
 import { logout } from '../features/auth/authSlice';
 import DeliveryLocationPicker from './DeliveryLocationPicker';
-import { isApprovedSeller, isPlatformAdmin, isSuperAdminUser, getStaffBasePath } from '../utils/userRoles';
+import { isApprovedSeller, isPlatformAdmin, isSuperAdminUser, isDeliveryAgent, getStaffBasePath } from '../utils/userRoles';
 
 const Header = () => {
   const dispatch = useDispatch();
@@ -14,7 +14,8 @@ const Header = () => {
 
   const { cartItems } = useSelector((state) => state.cart);
   const { userInfo } = useSelector((state) => state.auth);
-  const isManagement = userInfo && (isApprovedSeller(userInfo) || isPlatformAdmin(userInfo) || isSuperAdminUser(userInfo));
+  const isDelivery = userInfo && isDeliveryAgent(userInfo);
+  const isManagement = userInfo && (isApprovedSeller(userInfo) || isPlatformAdmin(userInfo) || isSuperAdminUser(userInfo) || isDelivery);
   const [logoutApiCall] = useLogoutMutation();
   const { data: categories } = useGetProductCategoriesQuery();
 
@@ -99,24 +100,26 @@ const Header = () => {
             </span>
           </Link>
 
-          {/* Integrated Search Bar (Desktop only) */}
-          <form 
-            onSubmit={handleSearchSubmit} 
-            className="hidden md:flex flex-1 items-center bg-white rounded-xl border border-slate-200 overflow-hidden focus-within:ring-2 focus-within:ring-brand-500 focus-within:border-brand-500 shadow-sm max-w-2xl"
-          >
-            <div className="pl-3.5 text-slate-400 flex items-center justify-center">
-              <svg className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </div>
-            <input
-              type="text"
-              placeholder="Search Buybee..."
-              value={searchKeyword}
-              onChange={(e) => setSearchKeyword(e.target.value)}
-              className="pl-2 pr-4 py-2.5 text-sm text-slate-700 flex-1 focus:outline-none h-full bg-white"
-            />
-          </form>
+          {/* Integrated Search Bar (Desktop only) - Hidden for Delivery Agents */}
+          {!isDelivery && (
+            <form 
+              onSubmit={handleSearchSubmit} 
+              className="hidden md:flex flex-1 items-center bg-white rounded-xl border border-slate-200 overflow-hidden focus-within:ring-2 focus-within:ring-brand-500 focus-within:border-brand-500 shadow-sm max-w-2xl"
+            >
+              <div className="pl-3.5 text-slate-400 flex items-center justify-center">
+                <svg className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <input
+                type="text"
+                placeholder="Search Buybee..."
+                value={searchKeyword}
+                onChange={(e) => setSearchKeyword(e.target.value)}
+                className="pl-2 pr-4 py-2.5 text-sm text-slate-700 flex-1 focus:outline-none h-full bg-white"
+              />
+            </form>
+          )}
 
           {/* Right Side Options */}
           <div className="flex items-center gap-1 sm:gap-2 shrink-0 min-w-0">
@@ -228,6 +231,30 @@ const Header = () => {
                     </div>
                   )}
 
+                  {isDelivery && (
+                    <div className="border-t border-slate-100 pt-1 mt-1 bg-slate-50/50">
+                      <div className="px-4 pt-1 pb-0.5">
+                        <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
+                          Delivery Controls
+                        </p>
+                      </div>
+                      <Link
+                        to="/delivery/orderlist"
+                        className="block px-4 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                        onClick={() => setDropdownOpen(false)}
+                      >
+                        Manage Orders
+                      </Link>
+                      <Link
+                        to="/delivery/paymentlist"
+                        className="block px-4 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                        onClick={() => setDropdownOpen(false)}
+                      >
+                        Manage Payments
+                      </Link>
+                    </div>
+                  )}
+
                   {(isPlatformAdmin(userInfo) || isSuperAdminUser(userInfo)) && (
                     <div className="border-t border-slate-100 pt-1 mt-1 bg-slate-50/50">
                       <div className="px-4 pt-1 pb-0.5">
@@ -291,11 +318,12 @@ const Header = () => {
       </div>
 
       {/* ── Mobile Search Bar (below logo row, hidden on desktop) ── */}
-      <div className="md:hidden bg-white border-t border-slate-100 px-3 py-2.5">
-        <form
-          onSubmit={handleSearchSubmit}
-          className="flex items-center gap-2 bg-slate-100 rounded-xl border border-slate-200 overflow-hidden focus-within:bg-white focus-within:border-orange-400 focus-within:ring-2 focus-within:ring-orange-400/30 transition-all shadow-sm"
-        >
+      {!isDelivery && (
+        <div className="md:hidden bg-white border-t border-slate-100 px-3 py-2.5">
+          <form
+            onSubmit={handleSearchSubmit}
+            className="flex items-center gap-2 bg-slate-100 rounded-xl border border-slate-200 overflow-hidden focus-within:bg-white focus-within:border-orange-400 focus-within:ring-2 focus-within:ring-orange-400/30 transition-all shadow-sm"
+          >
           {/* Search icon */}
           <div className="pl-3.5 flex items-center text-slate-400 shrink-0">
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -338,29 +366,29 @@ const Header = () => {
           </button>
         </form>
       </div>
+      )}
 
       {/* --- Sub-navbar (Light Grey/Blue Subbar) - hidden on mobile --- */}
-      <div className="hidden md:block bg-slate-50 border-t border-slate-200/60 text-slate-600 py-1.5">
-        <div className="mx-auto flex max-w-7xl items-center gap-1 px-4 text-xs font-semibold overflow-x-auto scrollbar-none">
-
-
-
-          {/* Quick category pills */}
-          {['Fashion', 'Creative', 'Mobiles', 'Furniture', 'Beauty', 'Electronics'].map((cat) => (
-            <button
-              key={cat}
-              onClick={() => handleCategoryFilter(cat)}
-              className={`px-3 py-1.5 rounded border transition-colors duration-150 whitespace-nowrap ${
-                activeCategory === cat
-                  ? 'border-brand-500 font-bold bg-brand-50 text-brand-650'
-                  : 'border-transparent hover:bg-slate-200/50'
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
+      {!isDelivery && (
+        <div className="hidden md:block bg-slate-50 border-t border-slate-200/60 text-slate-600 py-1.5">
+          <div className="mx-auto flex max-w-7xl items-center gap-1 px-4 text-xs font-semibold overflow-x-auto scrollbar-none">
+            {/* Quick category pills */}
+            {['Fashion', 'Creative', 'Mobiles', 'Furniture', 'Beauty', 'Electronics'].map((cat) => (
+              <button
+                key={cat}
+                onClick={() => handleCategoryFilter(cat)}
+                className={`px-3 py-1.5 rounded border transition-colors duration-150 whitespace-nowrap ${
+                  activeCategory === cat
+                    ? 'border-brand-500 font-bold bg-brand-50 text-brand-650'
+                    : 'border-transparent hover:bg-slate-200/50'
+                }`}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
     </header>
   );
 };

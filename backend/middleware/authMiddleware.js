@@ -47,13 +47,13 @@ const admin = (req, res, next) => {
   }
 };
 
-// Approved seller only. Must run AFTER `protect`.
+// Approved seller or delivery agent. Must run AFTER `protect`.
 const seller = (req, res, next) => {
-  if (req.user && (isApprovedSeller(req.user) || isStaff(req.user))) {
+  if (req.user && (isApprovedSeller(req.user) || isStaff(req.user) || req.user.isDeliveryAgent)) {
     next();
   } else {
     res.status(403);
-    throw new Error('Not authorized as a seller');
+    throw new Error('Not authorized as a seller or delivery agent');
   }
 };
 
