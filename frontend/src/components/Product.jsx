@@ -3,14 +3,35 @@ import { useDispatch, useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
 import { addToCart } from '../features/cart/cartSlice';
 import Rating from './Rating';
-import { isApprovedSeller, isPlatformAdmin, isSuperAdminUser } from '../utils/userRoles';
-
+import { Heart } from 'lucide-react';
+import { isApprovedSeller, isPlatformAdmin, isSuperAdminUser, isDeliveryAgent } from '../utils/userRoles';
+import { addToWishlist, removeFromWishlist } from '../features/wishlist/wishlistSlice';
 const Product = ({ product }) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
   const { userInfo } = useSelector((state) => state.auth);
-  const isManagement = userInfo && (isApprovedSeller(userInfo) || isPlatformAdmin(userInfo) || isSuperAdminUser(userInfo));
+  const { wishlistItems } = useSelector((state) => state.wishlist);
+  const isManagement = userInfo && (isApprovedSeller(userInfo) || isPlatformAdmin(userInfo) || isSuperAdminUser(userInfo) || isDeliveryAgent(userInfo));
+  
+  const inWishlist = wishlistItems.some((item) => item._id === product._id);
+
+  const toggleWishlist = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (inWishlist) {
+      dispatch(removeFromWishlist(product._id));
+      toast.info('Removed from wishlist');
+    } else {
+      dispatch(addToWishlist({
+        _id: product._id,
+        name: product.name,
+        image: product.images?.[0] || '/uploads/seed/placeholder.jpg',
+        price: product.price,
+      }));
+      toast.success('Added to wishlist');
+    }
+  };
 
   // Simulate an original price and a discount (e.g., 20% off)
   const originalPrice = product.price * 1.25;
@@ -69,6 +90,19 @@ const Product = ({ product }) => {
 
   return (
     <div className="group flex flex-col bg-white border border-gray-200 rounded shadow-sm hover:shadow-md transition-shadow duration-150 p-4 relative justify-between">
+      {/* Wishlist Heart */}
+      {!isManagement && (
+        <button 
+          onClick={toggleWishlist}
+          className="absolute top-2 right-2 z-10 p-1.5 rounded-full bg-white/80 hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors shadow-sm"
+          title={inWishlist ? "Remove from wishlist" : "Add to wishlist"}
+        >
+          <Heart 
+            className={`w-4 h-4 ${inWishlist ? 'fill-red-500 text-red-500' : ''}`} 
+          />
+        </button>
+      )}
+      
       <Link to={`/product/${product._id}`} className="flex flex-col flex-1">
         {/* Centered Image */}
         <div className="w-full aspect-square bg-white flex items-center justify-center overflow-hidden mb-3">

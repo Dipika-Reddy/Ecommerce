@@ -13,7 +13,7 @@ const CartScreen = () => {
     (state) => state.cart
   );
   const { userInfo } = useSelector((state) => state.auth);
-  const isManagement = userInfo && (isApprovedSeller(userInfo) || isPlatformAdmin(userInfo) || isSuperAdminUser(userInfo));
+  const isManagement = userInfo && (isApprovedSeller(userInfo) || isPlatformAdmin(userInfo) || isSuperAdminUser(userInfo) || userInfo.isDeliveryAgent);
 
   const updateQtyHandler = (item, qty) => {
     dispatch(updateQty({ id: item._id, size: item.size, color: item.color, qty: Number(qty) }));

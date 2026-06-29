@@ -7,7 +7,9 @@ import { useGetMyOrdersQuery, useCreateSubscriptionOrderMutation, useVerifySubsc
 import { setCredentials } from '../features/auth/authSlice';
 import Loader from '../components/Loader';
 import Message from '../components/Message';
-import { Shield, Sparkles, Check, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Shield, Sparkles, Check, ToggleLeft, ToggleRight, Trash2, Heart } from 'lucide-react';
+import { removeFromWishlist } from '../features/wishlist/wishlistSlice';
+import { isApprovedSeller, isPlatformAdmin, isSuperAdminUser, isDeliveryAgent } from '../utils/userRoles';
 
 const statusColor = {
   Pending: 'bg-gray-100 text-gray-700',
@@ -19,7 +21,9 @@ const statusColor = {
 
 const ProfileScreen = () => {
   const { userInfo } = useSelector((state) => state.auth);
+  const { wishlistItems } = useSelector((state) => state.wishlist);
   const dispatch = useDispatch();
+  const isManagement = userInfo && (isApprovedSeller(userInfo) || isPlatformAdmin(userInfo) || isSuperAdminUser(userInfo) || isDeliveryAgent(userInfo));
 
   const [name, setName] = useState(userInfo.name);
   const [email, setEmail] = useState(userInfo.email);
@@ -263,9 +267,9 @@ const ProfileScreen = () => {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6">
-      <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
+      <div className={`grid grid-cols-1 gap-8 ${!isManagement ? 'md:grid-cols-3' : ''}`}>
         {/* --- Account form --- */}
-        <div className="md:col-span-1">
+        <div className={`${isManagement ? 'max-w-md mx-auto w-full' : 'md:col-span-1'}`}>
           {!isEditing ? (
             <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
               <div className="mb-6">
@@ -377,7 +381,7 @@ const ProfileScreen = () => {
         </div>
 
         {/* --- Order history & Payment History --- */}
-        {!(userInfo.isAdmin || userInfo.isSuperAdmin || userInfo.sellerStatus === 'Approved' || userInfo.isDeliveryAgent) && (
+        {!isManagement && (
         <div className="md:col-span-2 space-y-8">
           <div>
             <h1 className="mb-4 text-xl font-bold text-gray-900">Order History</h1>
@@ -499,6 +503,46 @@ const ProfileScreen = () => {
             )}
           </div>
         </div>
+        )}
+        
+        {/* --- My Wishlist --- */}
+        {!isManagement && (
+          <div className="md:col-span-2 space-y-4">
+            <div className="flex items-center gap-2">
+              <Heart className="w-5 h-5 text-red-500 fill-red-500" />
+              <h1 className="text-xl font-bold text-gray-900">My Wishlist</h1>
+            </div>
+            
+            {wishlistItems.length === 0 ? (
+              <Message variant="info">
+                Your wishlist is empty. <Link to="/" className="underline font-bold text-brand-600">Discover products</Link>
+              </Message>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                {wishlistItems.map((item) => (
+                  <div key={item._id} className="border border-gray-200 rounded-lg p-3 relative group bg-white shadow-sm hover:shadow-md transition">
+                    <button
+                      onClick={() => {
+                        dispatch(removeFromWishlist(item._id));
+                        toast.info('Removed from wishlist');
+                      }}
+                      className="absolute top-2 right-2 p-1.5 bg-white/80 hover:bg-red-50 rounded-full text-gray-400 hover:text-red-500 z-10 opacity-0 group-hover:opacity-100 transition-all shadow-sm"
+                      title="Remove"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                    <Link to={`/product/${item._id}`} className="block">
+                      <div className="aspect-square bg-white flex items-center justify-center overflow-hidden rounded mb-2">
+                        <img src={item.image} alt={item.name} className="max-h-full object-contain group-hover:scale-105 transition duration-200" />
+                      </div>
+                      <h3 className="text-xs font-medium text-gray-800 line-clamp-2 leading-tight group-hover:text-brand-600">{item.name}</h3>
+                      <p className="text-sm font-bold text-gray-900 mt-1">₹{item.price.toFixed(2)}</p>
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         )}
       </div>
       {/* Cancellation Refund Details Modal */}

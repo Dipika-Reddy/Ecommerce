@@ -19,7 +19,7 @@ const ProductScreen = () => {
   const dispatch = useDispatch();
 
   const { userInfo } = useSelector((state) => state.auth);
-  const isManagement = userInfo && (isApprovedSeller(userInfo) || isPlatformAdmin(userInfo) || isSuperAdminUser(userInfo));
+  const isManagement = userInfo && (isApprovedSeller(userInfo) || isPlatformAdmin(userInfo) || isSuperAdminUser(userInfo) || userInfo.isDeliveryAgent);
 
   const { data: product, isLoading, error, refetch } = useGetProductDetailsQuery(productId);
   const [createReview, { isLoading: loadingReview }] = useCreateReviewMutation();
