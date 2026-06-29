@@ -227,7 +227,7 @@ const updateOrderToPaid = asyncHandler(async (req, res) => {
     data: {
       isPaid: true,
       paidAt: new Date(),
-      status: 'Processing',
+      status: order.status === 'Pending' ? 'Processing' : order.status,
       paymentResult: {
         id: req.body.id || `MOCK-${Date.now()}`,
         status: req.body.status || 'COMPLETED',

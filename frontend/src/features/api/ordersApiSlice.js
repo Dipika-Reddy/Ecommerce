@@ -25,7 +25,11 @@ export const ordersApiSlice = apiSlice.injectEndpoints({
         method: 'PUT',
         body: details,
       }),
-      invalidatesTags: (result, error, { orderId }) => [{ type: 'Order', id: orderId }],
+      invalidatesTags: (result, error, { orderId }) => [
+        { type: 'Order', id: orderId },
+        { type: 'Order', id: 'LIST' },
+        'Order'
+      ],
     }),
 
     updateOrderStatus: builder.mutation({
@@ -37,6 +41,7 @@ export const ordersApiSlice = apiSlice.injectEndpoints({
       invalidatesTags: (result, error, { orderId }) => [
         { type: 'Order', id: orderId },
         { type: 'Order', id: 'LIST' },
+        'Order'
       ],
     }),
 

@@ -167,7 +167,7 @@ const DeliveryLocationPicker = ({ variant = 'desktop' }) => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                 </svg>
               )}
-              {!loc.isDefault && (
+              {locations.length > 1 && (
                 <button
                   type="button"
                   onClick={(e) => {
