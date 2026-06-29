@@ -282,9 +282,18 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
     (item) => item.product && item.product.userId === req.user.id
   );
 
-  if (!isSuperAdmin && !isAdmin && !isSeller) {
+  const isDeliveryAgent = req.user.isDeliveryAgent;
+
+  if (!isSuperAdmin && !isAdmin && !isSeller && !isDeliveryAgent) {
     res.status(403);
     throw new Error('Not authorized to update this order');
+  }
+
+  if (isDeliveryAgent && !isSuperAdmin && !isAdmin && !isSeller) {
+    if (status !== 'Shipped' && status !== 'Delivered') {
+      res.status(403);
+      throw new Error('Delivery agents can only update status to Shipped or Delivered');
+    }
   }
 
   const dataUpdate = { status };
@@ -350,6 +359,7 @@ const getOrders = asyncHandler(async (req, res) => {
         select: {
           id: true,
           name: true,
+          phoneNumber: true,
         },
       },
       orderItems: {
@@ -372,6 +382,13 @@ const getOrders = asyncHandler(async (req, res) => {
   for (const order of orders) {
     if (isSuperAdmin || isAdmin) {
       filteredOrders.push(formatOrder(order));
+      continue;
+    }
+    
+    if (req.user.isDeliveryAgent) {
+      if (order.status === 'Shipped' || order.status === 'Delivered') {
+        filteredOrders.push(formatOrder(order));
+      }
       continue;
     }
 

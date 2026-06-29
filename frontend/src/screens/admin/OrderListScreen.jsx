@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { useGetOrdersQuery, useUpdateOrderStatusMutation } from '../../features/api/ordersApiSlice';
+import { useGetOrdersQuery, useUpdateOrderStatusMutation, usePayOrderMutation } from '../../features/api/ordersApiSlice';
 import Loader from '../../components/Loader';
 import Message from '../../components/Message';
+import { useSelector } from 'react-redux';
 import CustomSelect from '../../components/CustomSelect';
 
 const STATUS_OPTIONS = ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'];
@@ -17,9 +18,13 @@ const statusColor = {
 };
 
 const OrderListScreen = () => {
+  const { userInfo } = useSelector((state) => state.auth);
   const { data: orders, isLoading, error, refetch } = useGetOrdersQuery();
   const [updateOrderStatus] = useUpdateOrderStatusMutation();
+  const [payOrder] = usePayOrderMutation();
   const [savingId, setSavingId] = useState(null);
+
+  const DELIVERY_STATUS_OPTIONS = ['Shipped', 'Delivered'];
 
   const statusChangeHandler = async (orderId, status) => {
     setSavingId(orderId);
@@ -31,6 +36,18 @@ const OrderListScreen = () => {
       toast.error(err?.data?.message || 'Failed to update order');
     } finally {
       setSavingId(null);
+    }
+  };
+
+  const markAsPaidHandler = async (orderId) => {
+    if (window.confirm('Mark this order as paid?')) {
+      try {
+        await payOrder({ orderId, details: { status: 'COMPLETED' } }).unwrap();
+        toast.success('Order marked as paid');
+        refetch();
+      } catch (err) {
+        toast.error(err?.data?.message || 'Failed to mark as paid');
+      }
     }
   };
 
@@ -61,23 +78,50 @@ const OrderListScreen = () => {
             <tbody>
               {orders.map((order) => (
                 <tr key={order._id} className="border-t">
-                  <td className="px-4 py-3 font-mono text-xs">{order._id.slice(-8)}</td>
-                  <td className="px-4 py-3">{order.user?.name || 'Deleted user'}</td>
-                  <td className="px-4 py-3">{new Date(order.createdAt).toLocaleDateString()}</td>
-                  <td className="px-4 py-3">₹{order.totalPrice.toFixed(2)}</td>
+                  <td className="px-4 py-3 font-mono text-xs align-top">{order._id.slice(-8)}</td>
                   <td className="px-4 py-3">
-                    {order.isPaid ? (
-                      <span className="text-green-600">✓ Paid</span>
-                    ) : (
-                      <span className="text-red-500">✗ Unpaid</span>
+                    <div className="font-bold">{order.user?.name || 'Deleted user'}</div>
+                    {order.user?.phoneNumber && (
+                      <div className="text-xs text-gray-500 mt-0.5">📞 {order.user.phoneNumber}</div>
+                    )}
+                    {order.shippingAddress && (
+                      <div className="text-xs text-gray-500 mt-0.5">
+                        📍 {order.shippingAddress.address}, {order.shippingAddress.city} {order.shippingAddress.postalCode}
+                      </div>
                     )}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-3 align-top">{new Date(order.createdAt).toLocaleDateString()}</td>
+                  <td className="px-4 py-3 align-top">
+                    <div>₹{order.totalPrice.toFixed(2)}</div>
+                    {userInfo?.isDeliveryAgent && (
+                      <div className="text-xs text-gray-500 mt-0.5">
+                        {order.paymentMethod === 'Cash on Delivery' ? 'Cash on Delivery' : 'Prepaid'}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 align-top">
+                    {order.isPaid ? (
+                      <span className="text-green-600 font-medium">✓ Paid</span>
+                    ) : (
+                      <div className="flex flex-col items-start gap-1">
+                        <span className="text-red-500 font-medium">✗ Unpaid</span>
+                        {userInfo?.isDeliveryAgent && (
+                          <button
+                            onClick={() => markAsPaidHandler(order._id)}
+                            className="text-[10px] bg-brand-500 text-white px-2 py-0.5 rounded hover:bg-brand-600"
+                          >
+                            Mark Paid
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 align-top">
                     <CustomSelect
                       value={order.status}
                       disabled={savingId === order._id}
                       onChange={(val) => statusChangeHandler(order._id, val)}
-                      options={STATUS_OPTIONS}
+                      options={userInfo?.isDeliveryAgent ? DELIVERY_STATUS_OPTIONS : STATUS_OPTIONS}
                       className={`text-xs font-semibold rounded-full border-0 ${statusColor[order.status]}`}
                     />
                   </td>

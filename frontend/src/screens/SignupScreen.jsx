@@ -23,6 +23,7 @@ const BeeLogo = () => (
 const ROLES = [
   { id: 'buyer', label: 'Buyer' },
   { id: 'seller', label: 'Seller' },
+  { id: 'delivery', label: 'Delivery Agent' },
 ];
 
 const colorMap = {
@@ -31,6 +32,9 @@ const colorMap = {
   },
   seller: {
     ring: 'ring-amber-500 border-amber-400 bg-amber-50',
+  },
+  delivery: {
+    ring: 'ring-teal-500 border-teal-400 bg-teal-50',
   },
 };
 
@@ -128,6 +132,7 @@ const SignupScreen = () => {
         password,
         phoneNumber,
         isSellerRequested: selectedRole === 'seller',
+        isDeliveryAgent: selectedRole === 'delivery',
         panNumber: selectedRole === 'seller' ? panNumber : undefined,
         gstNumber: selectedRole === 'seller' ? gstNumber : undefined,
         licensePicture: selectedRole === 'seller' ? licensePicture : undefined,
@@ -189,7 +194,7 @@ const SignupScreen = () => {
       <div className="w-full max-w-2xl">
         {/* ══ STEP 1: Role Selection ══ */}
         {step === 1 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {ROLES.map((role) => {
               const c = colorMap[role.id];
               const isSelected = selectedRole === role.id;
@@ -230,9 +235,11 @@ const SignupScreen = () => {
               <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${
                 selectedRole === 'seller'
                   ? 'bg-amber-100 text-amber-700'
-                  : 'bg-sky-100 text-sky-700'
+                  : selectedRole === 'delivery'
+                    ? 'bg-teal-100 text-teal-700'
+                    : 'bg-sky-100 text-sky-700'
               }`}>
-                {selectedRole === 'seller' ? 'Seller' : 'Buyer'}
+                {selectedRole === 'seller' ? 'Seller' : selectedRole === 'delivery' ? 'Delivery Agent' : 'Buyer'}
               </span>
             </div>
 
@@ -377,7 +384,7 @@ const SignupScreen = () => {
                 disabled={isLoading}
                 className="w-full py-3 rounded-xl bg-amber-500 hover:bg-amber-600 disabled:opacity-60 text-white font-bold text-sm shadow-sm transition-all duration-150 flex items-center justify-center gap-2 mt-2"
               >
-                {isLoading ? <Loader /> : `Create ${selectedRole === 'seller' ? 'Seller' : 'Buyer'} Account`}
+                {isLoading ? <Loader /> : `Create ${selectedRole === 'seller' ? 'Seller' : selectedRole === 'delivery' ? 'Delivery Agent' : 'Buyer'} Account`}
               </button>
             </form>
 

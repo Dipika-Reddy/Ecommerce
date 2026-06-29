@@ -19,6 +19,7 @@ import RegisterScreen from './screens/RegisterScreen';
 import AdminLoginScreen from './screens/AdminLoginScreen';
 import SuperAdminLoginScreen from './screens/SuperAdminLoginScreen';
 import SellerLoginScreen from './screens/SellerLoginScreen';
+import DeliveryLoginScreen from './screens/DeliveryLoginScreen';
 
 // Public catalog
 import HomeScreen from './screens/HomeScreen';
@@ -62,12 +63,13 @@ const App = () => {
       <Route path="/seller" element={<SellerLoginScreen />} />
       <Route path="/admin" element={<AdminLoginScreen />} />
       <Route path="/superadmin" element={<SuperAdminLoginScreen />} />
+      <Route path="/delivery" element={<DeliveryLoginScreen />} />
 
       {/* Standard layout routes */}
-      <Route path="/home" element={<StandardLayout><HomeScreen /></StandardLayout>} />
-      <Route path="/search/:keyword" element={<StandardLayout><HomeScreen /></StandardLayout>} />
-      <Route path="/product/:id" element={<StandardLayout><ProductScreen /></StandardLayout>} />
-      <Route path="/cart" element={<StandardLayout><CartScreen /></StandardLayout>} />
+      <Route path="/home" element={userInfo?.isDeliveryAgent ? <Navigate to="/delivery/orderlist" replace /> : <StandardLayout><HomeScreen /></StandardLayout>} />
+      <Route path="/search/:keyword" element={userInfo?.isDeliveryAgent ? <Navigate to="/delivery/orderlist" replace /> : <StandardLayout><HomeScreen /></StandardLayout>} />
+      <Route path="/product/:id" element={userInfo?.isDeliveryAgent ? <Navigate to="/delivery/orderlist" replace /> : <StandardLayout><ProductScreen /></StandardLayout>} />
+      <Route path="/cart" element={userInfo?.isDeliveryAgent ? <Navigate to="/delivery/orderlist" replace /> : <StandardLayout><CartScreen /></StandardLayout>} />
 
       <Route path="/login" element={<StandardLayout><LoginScreen /></StandardLayout>} />
       <Route path="/register" element={<StandardLayout><RegisterScreen /></StandardLayout>} />

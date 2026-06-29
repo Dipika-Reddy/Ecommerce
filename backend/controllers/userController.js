@@ -7,7 +7,7 @@ import generateToken from '../utils/generateToken.js';
 // @route   POST /api/users
 // @access  Public
 const registerUser = asyncHandler(async (req, res) => {
-  const { name, email, password, phoneNumber, panNumber, gstNumber, licensePicture, isSellerRequested } = req.body;
+  const { name, email, password, phoneNumber, panNumber, gstNumber, licensePicture, isSellerRequested, isDeliveryAgent } = req.body;
 
   if (!name || !email || !password) {
     res.status(400);
@@ -49,6 +49,7 @@ const registerUser = asyncHandler(async (req, res) => {
       gstNumber: isSellerRequested ? gstNumber : null,
       licensePicture: isSellerRequested ? licensePicture : null,
       sellerStatus,
+      isDeliveryAgent: Boolean(isDeliveryAgent),
     },
   });
 
@@ -156,6 +157,7 @@ const updateUserProfile = asyncHandler(async (req, res) => {
   const updateData = {};
   if (req.body.name) updateData.name = req.body.name;
   if (req.body.email) updateData.email = req.body.email;
+  if (req.body.phoneNumber) updateData.phoneNumber = req.body.phoneNumber;
   if (req.body.password) {
     const salt = await bcrypt.genSalt(10);
     updateData.password = await bcrypt.hash(req.body.password, salt);
@@ -174,6 +176,7 @@ const updateUserProfile = asyncHandler(async (req, res) => {
     isSuperAdmin: updatedUser.isSuperAdmin,
     sellerStatus: updatedUser.sellerStatus,
     phoneNumber: updatedUser.phoneNumber,
+    isDeliveryAgent: updatedUser.isDeliveryAgent,
     token: generateToken(updatedUser.id),
   });
 });
@@ -190,6 +193,7 @@ const getUsers = asyncHandler(async (req, res) => {
       isAdmin: true,
       isSuperAdmin: true,
       sellerStatus: true,
+      isDeliveryAgent: true,
       phoneNumber: true,
       panNumber: true,
       gstNumber: true,
@@ -256,10 +260,12 @@ const updateUser = asyncHandler(async (req, res) => {
     if (req.body.isAdmin !== undefined) updateData.isAdmin = req.body.isAdmin;
     if (req.body.isSuperAdmin !== undefined) updateData.isSuperAdmin = req.body.isSuperAdmin;
     if (req.body.sellerStatus !== undefined) updateData.sellerStatus = req.body.sellerStatus;
+    if (req.body.isDeliveryAgent !== undefined) updateData.isDeliveryAgent = req.body.isDeliveryAgent;
   } else if (
     req.body.isAdmin !== undefined ||
     req.body.isSuperAdmin !== undefined ||
-    req.body.sellerStatus !== undefined
+    req.body.sellerStatus !== undefined ||
+    req.body.isDeliveryAgent !== undefined
   ) {
     res.status(403);
     throw new Error('Only superadmins can modify user roles');

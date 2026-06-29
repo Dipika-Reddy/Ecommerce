@@ -32,6 +32,7 @@ const UserListScreen = () => {
     let isAdmin = false;
     let isSuperAdmin = false;
     let sellerStatus = 'NONE';
+    let isDeliveryAgent = false;
 
     if (newRole === 'seller') {
       sellerStatus = 'APPROVED';
@@ -40,12 +41,14 @@ const UserListScreen = () => {
     } else if (newRole === 'superadmin') {
       isAdmin = true;
       isSuperAdmin = true;
+    } else if (newRole === 'delivery') {
+      isDeliveryAgent = true;
     }
 
     try {
       await updateUser({
         userId: user._id,
-        data: { isAdmin, isSuperAdmin, sellerStatus },
+        data: { isAdmin, isSuperAdmin, sellerStatus, isDeliveryAgent },
       }).unwrap();
       toast.success(`Updated role for ${user.name} to ${newRole}`);
       refetch();
@@ -91,7 +94,9 @@ const UserListScreen = () => {
                     ? 'admin'
                     : user.sellerStatus === 'APPROVED'
                       ? 'seller'
-                      : 'customer';
+                      : user.isDeliveryAgent
+                        ? 'delivery'
+                        : 'customer';
 
                 const isSelf = user._id === userInfo?._id;
 
@@ -134,6 +139,7 @@ const UserListScreen = () => {
                           options={[
                             { value: 'customer', label: 'Customer' },
                             { value: 'seller', label: 'Seller' },
+                            { value: 'delivery', label: 'Delivery Agent' },
                             { value: 'admin', label: 'Admin' },
                             { value: 'superadmin', label: 'Superadmin' },
                           ]}
