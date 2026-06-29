@@ -11,6 +11,7 @@ import Rating from '../components/Rating';
 import Loader from '../components/Loader';
 import Message from '../components/Message';
 import CustomSelect from '../components/CustomSelect';
+import { isApprovedSeller, isPlatformAdmin, isSuperAdminUser } from '../utils/userRoles';
 
 const ProductScreen = () => {
   const { id: productId } = useParams();
@@ -18,17 +19,40 @@ const ProductScreen = () => {
   const dispatch = useDispatch();
 
   const { userInfo } = useSelector((state) => state.auth);
+  const isManagement = userInfo && (isApprovedSeller(userInfo) || isPlatformAdmin(userInfo) || isSuperAdminUser(userInfo));
 
   const { data: product, isLoading, error, refetch } = useGetProductDetailsQuery(productId);
   const [createReview, { isLoading: loadingReview }] = useCreateReviewMutation();
 
   const [activeImage, setActiveImage] = useState(0);
-  const [isZoomed, setIsZoomed] = useState(false);
   const [qty, setQty] = useState(1);
   const [size, setSize] = useState('');
   const [color, setColor] = useState('');
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
+  const [isZoomed, setIsZoomed] = useState(false);
+  const [zoomStyle, setZoomStyle] = useState({ transformOrigin: 'center center' });
+
+  // Handle zooming at the specific click location
+  const handleImageClick = (e) => {
+    if (isZoomed) {
+      setIsZoomed(false);
+    } else {
+      const { left, top, width, height } = e.currentTarget.getBoundingClientRect();
+      const x = ((e.clientX - left) / width) * 100;
+      const y = ((e.clientY - top) / height) * 100;
+      setZoomStyle({ transformOrigin: `${x}% ${y}%` });
+      setIsZoomed(true);
+    }
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isZoomed) return;
+    const { left, top, width, height } = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - left) / width) * 100;
+    const y = ((e.clientY - top) / height) * 100;
+    setZoomStyle({ transformOrigin: `${x}% ${y}%` });
+  };
 
   // --- Add to cart ---
   const addToCartHandler = () => {
@@ -93,13 +117,16 @@ const ProductScreen = () => {
         {/* --- Image gallery --- */}
         <div>
           <div 
-            className="aspect-square overflow-hidden rounded-lg border bg-white flex items-center justify-center cursor-zoom-in"
-            onClick={() => setIsZoomed(true)}
+            className={`aspect-square overflow-hidden rounded-lg border bg-white flex items-center justify-center relative ${isZoomed ? 'cursor-zoom-out' : 'cursor-zoom-in'}`}
+            onClick={handleImageClick}
+            onMouseMove={handleMouseMove}
+            onMouseLeave={() => setIsZoomed(false)}
           >
             <img
               src={product.images[activeImage]}
               alt={product.name}
-              className="h-full w-full object-contain p-2"
+              className={`h-full w-full object-contain p-2 transition-transform duration-75 ${isZoomed ? 'scale-[2.5]' : 'scale-100'}`}
+              style={isZoomed ? zoomStyle : {}}
             />
           </div>
           {product.images.length > 1 && (
@@ -192,6 +219,7 @@ const ProductScreen = () => {
             </div>
           )}
 
+          {!isManagement && (
             <div className="mt-6 flex items-center gap-3">
               <div className="w-32 flex-shrink-0">
                 <CustomSelect
@@ -210,6 +238,7 @@ const ProductScreen = () => {
                 Add to Cart
               </button>
             </div>
+          )}
         </div>
       </div>
 
@@ -234,9 +263,10 @@ const ProductScreen = () => {
           </div>
         </div>
 
-        <div>
-          <h2 className="mb-4 text-xl font-bold text-gray-800">Write a Review</h2>
-          {userInfo ? (
+        {!isManagement && (
+          <div>
+            <h2 className="mb-4 text-xl font-bold text-gray-800">Write a Review</h2>
+            {userInfo ? (
             <form onSubmit={submitReviewHandler} className="space-y-3 rounded-md border p-4">
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">Rating</label>
@@ -278,30 +308,8 @@ const ProductScreen = () => {
             </Message>
           )}
         </div>
+        )}
       </div>
-
-      {/* --- Zoom Modal --- */}
-      {isZoomed && (
-        <div 
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-90 p-4 cursor-zoom-out"
-          onClick={() => setIsZoomed(false)}
-        >
-          <img
-            src={product.images[activeImage]}
-            alt={product.name}
-            className="max-h-full max-w-full object-contain"
-          />
-          <button 
-            className="absolute top-6 right-6 flex h-10 w-10 items-center justify-center rounded-full bg-white/20 text-xl font-bold text-white hover:bg-white/40"
-            onClick={(e) => {
-              e.stopPropagation();
-              setIsZoomed(false);
-            }}
-          >
-            ✕
-          </button>
-        </div>
-      )}
     </div>
   );
 };

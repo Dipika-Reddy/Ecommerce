@@ -39,7 +39,7 @@ app.use('/api/upload', uploadRoutes);
 app.use('/api/payments', paymentRoutes);
 
 // Serve uploaded product images statically
-app.use('/uploads', express.static(path.join(__dirname, '/uploads')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // --- Error handling (must come after all routes) ---
 app.use(notFound);

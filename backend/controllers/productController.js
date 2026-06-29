@@ -53,22 +53,31 @@ const getProducts = asyncHandler(async (req, res) => {
       orderBy = { createdAt: 'desc' };
   }
 
-  const [count, products] = await Promise.all([
-    prisma.product.count({ where }),
-    prisma.product.findMany({
-      where,
-      orderBy,
-      take: pageSize,
-      skip: pageSize * (page - 1),
-      include: {
-        user: {
-          select: {
-            name: true,
-          },
+  const allProducts = await prisma.product.findMany({
+    where,
+    orderBy,
+    include: {
+      user: {
+        select: {
+          name: true,
         },
       },
-    }),
-  ]);
+    },
+  });
+
+  // Deduplicate by name
+  const distinctProducts = [];
+  const seenNames = new Set();
+  for (const p of allProducts) {
+    if (!seenNames.has(p.name)) {
+      seenNames.add(p.name);
+      distinctProducts.push(p);
+    }
+  }
+
+  const count = distinctProducts.length;
+  const startIndex = pageSize * (page - 1);
+  const products = distinctProducts.slice(startIndex, startIndex + pageSize);
 
   // Map database ids to _id format for frontend compatibility
   const formattedProducts = products.map((product) => ({
@@ -311,16 +320,25 @@ const getTopProducts = asyncHandler(async (req, res) => {
     orderBy: {
       rating: 'desc',
     },
-    take: 5,
+    take: 20,
   });
 
-  const formattedProducts = products.map((product) => ({
-    ...product,
-    _id: product.id,
-    user: product.userId,
-  }));
+  const distinctProducts = [];
+  const seenNames = new Set();
+  
+  for (const product of products) {
+    if (!seenNames.has(product.name)) {
+      seenNames.add(product.name);
+      distinctProducts.push({
+        ...product,
+        _id: product.id,
+        user: product.userId,
+      });
+      if (distinctProducts.length === 5) break;
+    }
+  }
 
-  res.json(formattedProducts);
+  res.json(distinctProducts);
 });
 
 export {

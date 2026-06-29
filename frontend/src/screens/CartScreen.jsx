@@ -3,6 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { removeFromCart, updateQty } from '../features/cart/cartSlice';
 import Message from '../components/Message';
 import CustomSelect from '../components/CustomSelect';
+import { isApprovedSeller, isPlatformAdmin, isSuperAdminUser } from '../utils/userRoles';
 
 const CartScreen = () => {
   const dispatch = useDispatch();
@@ -12,6 +13,7 @@ const CartScreen = () => {
     (state) => state.cart
   );
   const { userInfo } = useSelector((state) => state.auth);
+  const isManagement = userInfo && (isApprovedSeller(userInfo) || isPlatformAdmin(userInfo) || isSuperAdminUser(userInfo));
 
   const updateQtyHandler = (item, qty) => {
     dispatch(updateQty({ id: item._id, size: item.size, color: item.color, qty: Number(qty) }));
@@ -30,7 +32,11 @@ const CartScreen = () => {
     <div className="mx-auto max-w-7xl px-4 py-6">
       <h1 className="mb-6 text-2xl font-bold text-gray-900">Shopping Cart</h1>
 
-      {cartItems.length === 0 ? (
+      {isManagement ? (
+        <Message variant="danger">
+          Management accounts do not have access to the shopping cart.
+        </Message>
+      ) : cartItems.length === 0 ? (
         <Message variant="info">
           Your cart is empty. <Link to="/" className="font-semibold underline">Continue shopping</Link>
         </Message>
