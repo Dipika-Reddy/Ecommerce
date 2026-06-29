@@ -124,7 +124,7 @@ const Header = () => {
           {/* Right Side Options */}
           <div className="flex items-center gap-1 sm:gap-2 shrink-0 min-w-0">
             {/* Delivery location — mobile: top right; desktop: inline dropdown */}
-            {!isDelivery && (
+            {!isManagement && (
               <>
                 <div className="md:hidden mr-5 sm:mr-6">
                   <DeliveryLocationPicker variant="mobile" />

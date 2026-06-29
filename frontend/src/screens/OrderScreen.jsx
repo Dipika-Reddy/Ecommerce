@@ -412,7 +412,7 @@ const OrderScreen = () => {
                 ) : (
                   <button
                     onClick={handleOpenRefund}
-                    className="w-full rounded-md bg-red-650 hover:bg-red-700 py-2 text-sm font-semibold text-white transition duration-150 shadow-sm"
+                    className="w-full rounded-md bg-red-600 hover:bg-red-700 py-2 text-sm font-semibold text-white transition duration-150 shadow-sm"
                   >
                     Issue Refund
                   </button>
@@ -725,7 +725,7 @@ const OrderScreen = () => {
                 <button
                   type="submit"
                   disabled={loadingRefund}
-                  className="flex-1 bg-red-650 hover:bg-red-700 text-white py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-md shadow-red-100 disabled:opacity-50"
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-md shadow-red-100 disabled:opacity-50"
                 >
                   {loadingRefund ? 'Processing...' : 'Confirm Refund'}
                 </button>
