@@ -24,8 +24,8 @@ const VerifySellersScreen = () => {
     }
   };
 
-  // Filter for pending seller applicants
-  const pendingSellers = users ? users.filter(user => user.sellerStatus === 'PENDING') : [];
+  // Filter for pending and approved seller applicants
+  const pendingSellers = users ? users.filter(user => ['PENDING', 'APPROVED'].includes(user.sellerStatus)) : [];
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 font-sans">
@@ -34,8 +34,8 @@ const VerifySellersScreen = () => {
           <h1 className="text-2xl font-black text-slate-900">Verify Sellers</h1>
           <p className="text-sm text-slate-500 mt-1">Review pending business documents (PAN, GST, license) and approve seller access.</p>
         </div>
-        <div className="bg-amber-100 text-amber-800 text-xs font-bold px-3 py-1.5 rounded-full border border-amber-300">
-          {pendingSellers.length} Pending Application{pendingSellers.length !== 1 && 's'}
+        <div className="bg-slate-100 text-slate-800 text-xs font-bold px-3 py-1.5 rounded-full border border-slate-300">
+          {pendingSellers.length} Seller Application{pendingSellers.length !== 1 && 's'}
         </div>
       </div>
 
@@ -48,8 +48,8 @@ const VerifySellersScreen = () => {
       ) : pendingSellers.length === 0 ? (
         <div className="text-center py-12 bg-white rounded-2xl border border-slate-200 shadow-sm">
           <div className="text-5xl mb-3">✅</div>
-          <h3 className="text-lg font-bold text-slate-800">All caught up!</h3>
-          <p className="text-sm text-slate-500 mt-1">There are no pending seller applications to verify at the moment.</p>
+          <h3 className="text-lg font-bold text-slate-800">No sellers yet!</h3>
+          <p className="text-sm text-slate-500 mt-1">There are no seller applications or verified sellers at the moment.</p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -69,8 +69,12 @@ const VerifySellersScreen = () => {
                   <td className="px-4 py-3 font-bold text-slate-900">
                     <div className="flex items-center gap-2">
                       <span>{user.name}</span>
-                      <span className="text-[9px] font-black tracking-wider bg-amber-100 text-amber-800 border border-amber-300 px-1.5 py-0.5 rounded uppercase">
-                        Pending
+                      <span className={`text-[9px] font-black tracking-wider px-1.5 py-0.5 rounded uppercase border ${
+                        user.sellerStatus === 'APPROVED' 
+                        ? 'bg-green-100 text-green-800 border-green-300' 
+                        : 'bg-amber-100 text-amber-800 border-amber-300'
+                      }`}>
+                        {user.sellerStatus}
                       </span>
                     </div>
                   </td>
@@ -155,18 +159,33 @@ const VerifySellersScreen = () => {
 
             {/* Modal Footer */}
             <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3">
-              <button
-                onClick={() => handleVerify(selectedUser._id, false)}
-                className="px-4 py-2 text-sm font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl transition"
-              >
-                Reject
-              </button>
-              <button
-                onClick={() => handleVerify(selectedUser._id, true)}
-                className="px-4 py-2 text-sm font-bold text-white bg-amber-500 hover:bg-amber-600 rounded-xl transition shadow-sm"
-              >
-                Approve as Seller
-              </button>
+              {selectedUser.sellerStatus === 'PENDING' ? (
+                <>
+                  <button
+                    onClick={() => handleVerify(selectedUser._id, false)}
+                    className="px-4 py-2 text-sm font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-xl transition"
+                  >
+                    Reject
+                  </button>
+                  <button
+                    onClick={() => handleVerify(selectedUser._id, true)}
+                    className="px-4 py-2 text-sm font-bold text-white bg-amber-500 hover:bg-amber-600 rounded-xl transition shadow-sm"
+                  >
+                    Approve as Seller
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={() => {
+                    setShowModal(false);
+                    setSelectedUser(null);
+                    setIsZoomed(false);
+                  }}
+                  className="px-4 py-2 text-sm font-bold text-slate-600 hover:text-slate-700 bg-slate-200 hover:bg-slate-300 rounded-xl transition shadow-sm"
+                >
+                  Close
+                </button>
+              )}
             </div>
           </div>
         </div>

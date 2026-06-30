@@ -420,9 +420,29 @@ const ProfileScreen = () => {
                           )}
                         </td>
                         <td className="px-4 py-3">
-                          <span className={`rounded-full px-2 py-1 text-xs font-semibold ${statusColor[order.status]}`}>
-                            {order.status}
-                          </span>
+                          {(() => {
+                            let displayStatus = order.status;
+                            let currentStatusColor = statusColor[order.status] || 'bg-gray-100 text-gray-700';
+
+                            if (order.isRefunded) {
+                              displayStatus = 'Returned';
+                              currentStatusColor = 'bg-fuchsia-100 text-fuchsia-700';
+                            } else if (order.returnStatus === 'Collected') {
+                              displayStatus = 'Return Successful';
+                              currentStatusColor = 'bg-teal-100 text-teal-700';
+                            } else if (order.returnStatus === 'Approved') {
+                              displayStatus = 'Return Approved';
+                              currentStatusColor = 'bg-blue-100 text-blue-700';
+                            } else if (order.returnStatus === 'Requested') {
+                              displayStatus = 'Return Requested';
+                              currentStatusColor = 'bg-orange-100 text-orange-700';
+                            }
+                            return (
+                              <span className={`rounded-full px-2 py-1 text-xs font-semibold ${currentStatusColor}`}>
+                                {displayStatus}
+                              </span>
+                            );
+                          })()}
                         </td>
                         <td className="px-4 py-3">
                           <Link to={`/order/${order._id}`} className="font-medium text-brand-600 hover:underline">

@@ -8,6 +8,10 @@ import {
   useVerifyPaymentSignatureMutation,
   useUpdateOrderStatusMutation,
   useRefundPaymentMutation,
+  useRequestReturnMutation,
+  useApproveReturnMutation,
+  useCompleteReturnMutation,
+  useProcessRefundMutation,
 } from '../features/api/ordersApiSlice';
 import Loader from '../components/Loader';
 import Message from '../components/Message';
@@ -45,6 +49,11 @@ const OrderScreen = () => {
   const [verifyPaymentSignature, { isLoading: loadingVerifySignature }] = useVerifyPaymentSignatureMutation();
   const [updateStatus, { isLoading: loadingStatus }] = useUpdateOrderStatusMutation();
   const [refundPayment, { isLoading: loadingRefund }] = useRefundPaymentMutation();
+
+  const [requestReturn, { isLoading: loadingRequestReturn }] = useRequestReturnMutation();
+  const [approveReturn, { isLoading: loadingApproveReturn }] = useApproveReturnMutation();
+  const [completeReturn, { isLoading: loadingCompleteReturn }] = useCompleteReturnMutation();
+  const [processRefund, { isLoading: loadingProcessRefund }] = useProcessRefundMutation();
 
   useEffect(() => {
     if (order && !order.isPaid && order.paymentMethod === 'UPI') {
@@ -95,6 +104,51 @@ const OrderScreen = () => {
       }).unwrap();
       toast.success('Refund processed successfully!');
       setShowRefundModal(false);
+      refetch();
+    } catch (err) {
+      toast.error(err?.data?.message || 'Failed to process refund');
+    }
+  };
+
+  const [showReturnModal, setShowReturnModal] = useState(false);
+  const [returnReason, setReturnReason] = useState('');
+
+  const handleRequestReturn = async (e) => {
+    e.preventDefault();
+    try {
+      await requestReturn({ orderId, reason: returnReason }).unwrap();
+      toast.success('Return requested successfully!');
+      setShowReturnModal(false);
+      refetch();
+    } catch (err) {
+      toast.error(err?.data?.message || 'Failed to request return');
+    }
+  };
+
+  const handleApproveReturn = async () => {
+    try {
+      await approveReturn(orderId).unwrap();
+      toast.success('Return approved successfully!');
+      refetch();
+    } catch (err) {
+      toast.error(err?.data?.message || 'Failed to approve return');
+    }
+  };
+
+  const handleCompleteReturn = async () => {
+    try {
+      await completeReturn(orderId).unwrap();
+      toast.success('Return marked as collected!');
+      refetch();
+    } catch (err) {
+      toast.error(err?.data?.message || 'Failed to complete return');
+    }
+  };
+
+  const handleProcessRefund = async () => {
+    try {
+      await processRefund(orderId).unwrap();
+      toast.success('Refund processed successfully for the returned order!');
       refetch();
     } catch (err) {
       toast.error(err?.data?.message || 'Failed to process refund');
@@ -230,6 +284,23 @@ const OrderScreen = () => {
 
   const isOrderOwner = userInfo._id === order.user._id || userInfo.id === order.user.id || userInfo._id === order.user || userInfo.id === order.user;
 
+  let displayStatus = order.status;
+  let currentStatusColor = statusColor[order.status] || 'bg-gray-100 text-gray-700';
+
+  if (order.isRefunded) {
+    displayStatus = 'Returned';
+    currentStatusColor = 'bg-fuchsia-100 text-fuchsia-700';
+  } else if (order.returnStatus === 'Collected') {
+    displayStatus = 'Return Successful';
+    currentStatusColor = 'bg-teal-100 text-teal-700';
+  } else if (order.returnStatus === 'Approved') {
+    displayStatus = 'Return Approved';
+    currentStatusColor = 'bg-blue-100 text-blue-700';
+  } else if (order.returnStatus === 'Requested') {
+    displayStatus = 'Return Requested';
+    currentStatusColor = 'bg-orange-100 text-orange-700';
+  }
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-6">
       <div id="invoice-content" className="bg-transparent pb-6">
@@ -238,8 +309,8 @@ const OrderScreen = () => {
             <h1 className="text-2xl font-bold text-gray-900">Order Summary</h1>
             <p className="text-xs text-gray-400">ID: #{order._id}</p>
           </div>
-          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusColor[order.status]}`}>
-            {order.status}
+          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${currentStatusColor}`}>
+            {displayStatus}
           </span>
         </div>
 
@@ -398,23 +469,65 @@ const OrderScreen = () => {
               </div>
             )}
 
-            {/* Admin-only refund control */}
-            {canManageOrder && successPayment && (
-              <div className="rounded-md border bg-white p-5 no-print">
-                <h2 className="mb-2 text-sm font-bold text-gray-800">Admin: Refund Portal</h2>
-                <p className="text-xs text-slate-500 mb-3">
-                  This order has a successful transaction. You can process refunds directly from this panel.
-                </p>
-                {successPayment.paymentStatus === 'REFUNDED' ? (
-                  <div className="text-xs font-semibold text-blue-600 bg-blue-50 border border-blue-100 p-2 rounded-lg text-center font-bold">
-                    ✓ Fully Refunded
+            {/* Return & Refund tracking */}
+            {((order.status === 'Delivered' && isOrderOwner) || order.returnStatus) && (
+              <div className="rounded-md border bg-white p-5 no-print overflow-hidden mt-4">
+                <h2 className="mb-3 text-sm font-bold text-gray-800">Return & Refund</h2>
+                
+                {order.returnStatus ? (
+                  <div className="space-y-3">
+                    <p className="text-sm">
+                      <strong>Status: </strong> 
+                      <span className="text-brand-600 font-bold">{order.returnStatus === 'Collected' ? 'Successful' : order.returnStatus}</span>
+                    </p>
+                    {order.returnReason && (
+                      <p className="text-xs text-gray-600 italic bg-slate-50 p-2 rounded border border-slate-100">"{order.returnReason}"</p>
+                    )}
+
+                    {canManageOrder && order.returnStatus === 'Requested' && (
+                      <button
+                        onClick={handleApproveReturn}
+                        disabled={loadingApproveReturn}
+                        className="w-full mt-2 rounded-md bg-amber-500 hover:bg-amber-600 py-2 text-sm font-semibold text-white transition duration-150 shadow-sm"
+                      >
+                        {loadingApproveReturn ? 'Processing...' : 'Approve Return'}
+                      </button>
+                    )}
+
+                    {userInfo?.isDeliveryAgent && order.returnStatus === 'Approved' && (
+                      <button
+                        onClick={handleCompleteReturn}
+                        disabled={loadingCompleteReturn}
+                        className="w-full mt-2 rounded-md bg-blue-600 hover:bg-blue-700 py-2 text-sm font-semibold text-white transition duration-150 shadow-sm"
+                      >
+                        {loadingCompleteReturn ? 'Processing...' : 'Mark Return Successful'}
+                      </button>
+                    )}
+
+
+
+                    {canManageOrder && order.returnStatus === 'Collected' && !order.isRefunded && (
+                      <button
+                        onClick={handleProcessRefund}
+                        disabled={loadingProcessRefund}
+                        className="w-full mt-2 rounded-md bg-green-600 hover:bg-green-700 py-2 text-sm font-semibold text-white transition duration-150 shadow-sm"
+                      >
+                        {loadingProcessRefund ? 'Processing...' : 'Process Refund'}
+                      </button>
+                    )}
+
+                    {order.isRefunded && (
+                      <div className="text-xs font-semibold text-green-700 bg-green-50 border border-green-200 p-2 rounded-lg text-center mt-2">
+                        ✓ Refund Processed
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <button
-                    onClick={handleOpenRefund}
-                    className="w-full rounded-md bg-red-600 hover:bg-red-700 py-2 text-sm font-semibold text-white transition duration-150 shadow-sm"
+                    onClick={() => setShowReturnModal(true)}
+                    className="w-full rounded-md bg-slate-100 hover:bg-slate-200 py-2 text-sm font-semibold text-slate-700 transition duration-150 border border-slate-300 shadow-sm"
                   >
-                    Issue Refund
+                    Request Return
                   </button>
                 )}
               </div>
@@ -728,6 +841,47 @@ const OrderScreen = () => {
                   className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-md shadow-red-100 disabled:opacity-50"
                 >
                   {loadingRefund ? 'Processing...' : 'Confirm Refund'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Return Request Modal */}
+      {showReturnModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full border border-slate-200 shadow-2xl p-6 relative animate-scale-in">
+            <h3 className="text-lg font-bold text-slate-900 mb-2">Request Return</h3>
+            <p className="text-xs text-slate-400 mb-4">Please provide a reason for returning this order.</p>
+
+            <form onSubmit={handleRequestReturn} className="space-y-4">
+              <div className="text-left">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Reason</label>
+                <textarea
+                  required
+                  rows="3"
+                  value={returnReason}
+                  onChange={(e) => setReturnReason(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 text-slate-700 px-3.5 py-2.5 rounded-xl text-sm outline-none focus:border-brand-500 focus:bg-white resize-none font-medium"
+                  placeholder="Tell us why you want to return this..."
+                ></textarea>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowReturnModal(false)}
+                  className="flex-1 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-250 py-2 rounded-xl text-xs font-semibold transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loadingRequestReturn}
+                  className="flex-1 bg-brand-600 hover:bg-brand-700 text-white py-2 rounded-xl text-xs font-bold transition flex items-center justify-center shadow-md disabled:opacity-50"
+                >
+                  {loadingRequestReturn ? 'Submitting...' : 'Submit Request'}
                 </button>
               </div>
             </form>

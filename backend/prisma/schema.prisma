@@ -80,6 +80,9 @@ model Order {
   isDelivered     Boolean     @default(false)
   deliveredAt     DateTime?
   status          String      @default("Pending")
+  returnReason    String?
+  returnStatus    String?     // 'Requested', 'Approved', 'Collected', 'Rejected'
+  isRefunded      Boolean     @default(false)
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
   payments        Payment[]

@@ -45,6 +45,55 @@ export const ordersApiSlice = apiSlice.injectEndpoints({
       ],
     }),
 
+    requestReturn: builder.mutation({
+      query: ({ orderId, reason }) => ({
+        url: `${ORDERS_URL}/${orderId}/return`,
+        method: 'PUT',
+        body: { reason },
+      }),
+      invalidatesTags: (result, error, { orderId }) => [
+        { type: 'Order', id: orderId },
+        { type: 'Order', id: 'LIST' },
+        'Order'
+      ],
+    }),
+
+    approveReturn: builder.mutation({
+      query: (orderId) => ({
+        url: `${ORDERS_URL}/${orderId}/return/approve`,
+        method: 'PUT',
+      }),
+      invalidatesTags: (result, error, orderId) => [
+        { type: 'Order', id: orderId },
+        { type: 'Order', id: 'LIST' },
+        'Order'
+      ],
+    }),
+
+    completeReturn: builder.mutation({
+      query: (orderId) => ({
+        url: `${ORDERS_URL}/${orderId}/return/complete`,
+        method: 'PUT',
+      }),
+      invalidatesTags: (result, error, orderId) => [
+        { type: 'Order', id: orderId },
+        { type: 'Order', id: 'LIST' },
+        'Order'
+      ],
+    }),
+
+    processRefund: builder.mutation({
+      query: (orderId) => ({
+        url: `${ORDERS_URL}/${orderId}/return/refund`,
+        method: 'PUT',
+      }),
+      invalidatesTags: (result, error, orderId) => [
+        { type: 'Order', id: orderId },
+        { type: 'Order', id: 'LIST' },
+        'Order'
+      ],
+    }),
+
     getMyOrders: builder.query({
       query: () => `${ORDERS_URL}/myorders`,
       providesTags: ['Order'],
@@ -125,4 +174,8 @@ export const {
   useGetAllPaymentsQuery,
   useCreateSubscriptionOrderMutation,
   useVerifySubscriptionSignatureMutation,
+  useRequestReturnMutation,
+  useApproveReturnMutation,
+  useCompleteReturnMutation,
+  useProcessRefundMutation,
 } = ordersApiSlice;

@@ -453,6 +453,104 @@ const getOrders = asyncHandler(async (req, res) => {
   res.json(filteredOrders);
 });
 
+// @desc    Request return
+// @route   PUT /api/orders/:id/return
+// @access  Private (Customer)
+const requestReturn = asyncHandler(async (req, res) => {
+  const { reason } = req.body;
+  const order = await prisma.order.findUnique({
+    where: { id: req.params.id }
+  });
+  if (order && order.userId === req.user.id) {
+    if (order.status !== 'Delivered') {
+      res.status(400);
+      throw new Error('Only delivered orders can be returned');
+    }
+    const updatedOrder = await prisma.order.update({
+      where: { id: req.params.id },
+      data: {
+        returnReason: reason,
+        returnStatus: 'Requested',
+      },
+      include: { orderItems: true, payments: true }
+    });
+    res.json(formatOrder(updatedOrder));
+  } else {
+    res.status(404);
+    throw new Error('Order not found or not authorized');
+  }
+});
+
+// @desc    Approve return
+// @route   PUT /api/orders/:id/return/approve
+// @access  Private (Seller/Admin)
+const approveReturn = asyncHandler(async (req, res) => {
+  const order = await prisma.order.findUnique({
+    where: { id: req.params.id }
+  });
+  if (order) {
+    const updatedOrder = await prisma.order.update({
+      where: { id: req.params.id },
+      data: {
+        returnStatus: 'Approved',
+      },
+      include: { orderItems: true, payments: true }
+    });
+    res.json(formatOrder(updatedOrder));
+  } else {
+    res.status(404);
+    throw new Error('Order not found');
+  }
+});
+
+// @desc    Complete return (Delivery Agent)
+// @route   PUT /api/orders/:id/return/complete
+// @access  Private (Delivery Agent)
+const completeReturn = asyncHandler(async (req, res) => {
+  const order = await prisma.order.findUnique({
+    where: { id: req.params.id }
+  });
+  if (order && req.user.isDeliveryAgent) {
+    const updatedOrder = await prisma.order.update({
+      where: { id: req.params.id },
+      data: {
+        returnStatus: 'Collected',
+      },
+      include: { orderItems: true, payments: true }
+    });
+    res.json(formatOrder(updatedOrder));
+  } else {
+    res.status(404);
+    throw new Error('Order not found or not authorized');
+  }
+});
+
+// @desc    Process refund
+// @route   PUT /api/orders/:id/return/refund
+// @access  Private (Seller/Admin)
+const processRefund = asyncHandler(async (req, res) => {
+  const order = await prisma.order.findUnique({
+    where: { id: req.params.id }
+  });
+  if (order) {
+    if (order.returnStatus !== 'Collected') {
+      res.status(400);
+      throw new Error('Return must be collected before refunding');
+    }
+    const updatedOrder = await prisma.order.update({
+      where: { id: req.params.id },
+      data: {
+        isRefunded: true,
+      },
+      include: { orderItems: true, payments: true }
+    });
+    res.json(formatOrder(updatedOrder));
+  } else {
+    res.status(404);
+    throw new Error('Order not found');
+  }
+});
+
 export {
   addOrderItems,
   getOrderById,
@@ -460,4 +558,8 @@ export {
   updateOrderStatus,
   getMyOrders,
   getOrders,
+  requestReturn,
+  approveReturn,
+  completeReturn,
+  processRefund,
 };

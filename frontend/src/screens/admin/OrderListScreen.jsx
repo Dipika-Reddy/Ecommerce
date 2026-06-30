@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { useGetOrdersQuery, useUpdateOrderStatusMutation, usePayOrderMutation } from '../../features/api/ordersApiSlice';
+import { useGetOrdersQuery, useUpdateOrderStatusMutation, usePayOrderMutation, useCompleteReturnMutation } from '../../features/api/ordersApiSlice';
 import Loader from '../../components/Loader';
 import Message from '../../components/Message';
 import { useSelector } from 'react-redux';
@@ -22,6 +22,7 @@ const OrderListScreen = () => {
   const { data: orders, isLoading, error, refetch } = useGetOrdersQuery();
   const [updateOrderStatus] = useUpdateOrderStatusMutation();
   const [payOrder] = usePayOrderMutation();
+  const [completeReturn] = useCompleteReturnMutation();
   const [savingId, setSavingId] = useState(null);
 
   const DELIVERY_STATUS_OPTIONS = ['Shipped', 'Delivered'];
@@ -34,6 +35,19 @@ const OrderListScreen = () => {
       refetch();
     } catch (err) {
       toast.error(err?.data?.message || 'Failed to update order');
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const completeReturnHandler = async (orderId) => {
+    setSavingId(orderId);
+    try {
+      await completeReturn(orderId).unwrap();
+      toast.success('Return marked as successful!');
+      refetch();
+    } catch (err) {
+      toast.error(err?.data?.message || 'Failed to complete return');
     } finally {
       setSavingId(null);
     }
@@ -72,7 +86,7 @@ const OrderListScreen = () => {
                 <th className="px-4 py-3">Total</th>
                 <th className="px-4 py-3">Paid</th>
                 <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3"></th>
+                {!userInfo?.isDeliveryAgent && <th className="px-4 py-3"></th>}
               </tr>
             </thead>
             <tbody>
@@ -117,19 +131,58 @@ const OrderListScreen = () => {
                     )}
                   </td>
                   <td className="px-4 py-3 align-top">
-                    <CustomSelect
-                      value={order.status}
-                      disabled={savingId === order._id}
-                      onChange={(val) => statusChangeHandler(order._id, val)}
-                      options={userInfo?.isDeliveryAgent ? DELIVERY_STATUS_OPTIONS : STATUS_OPTIONS}
-                      className={`text-xs font-semibold rounded-full border-0 ${statusColor[order.status]}`}
-                    />
+                    {order.isRefunded || order.returnStatus ? (
+                      (() => {
+                        let displayStatus = order.status;
+                        let currentStatusColor = statusColor[order.status] || 'bg-gray-100 text-gray-700';
+
+                        if (order.isRefunded) {
+                          displayStatus = 'Returned';
+                          currentStatusColor = 'bg-fuchsia-100 text-fuchsia-700';
+                        } else if (order.returnStatus === 'Collected') {
+                          displayStatus = 'Return Successful';
+                          currentStatusColor = 'bg-teal-100 text-teal-700';
+                        } else if (order.returnStatus === 'Approved') {
+                          displayStatus = 'Return Approved';
+                          currentStatusColor = 'bg-blue-100 text-blue-700';
+                        } else if (order.returnStatus === 'Requested') {
+                          displayStatus = 'Return Requested';
+                          currentStatusColor = 'bg-orange-100 text-orange-700';
+                        }
+                        return (
+                          <div className="flex flex-col gap-2">
+                            <span className={`inline-block w-fit rounded-full px-3 py-1.5 text-xs font-semibold ${currentStatusColor}`}>
+                              {displayStatus}
+                            </span>
+                            {userInfo?.isDeliveryAgent && order.returnStatus === 'Approved' && (
+                              <button
+                                disabled={savingId === order._id}
+                                onClick={() => completeReturnHandler(order._id)}
+                                className="text-[10px] bg-blue-600 text-white px-2 py-1 rounded shadow-sm hover:bg-blue-700 disabled:opacity-50 w-fit"
+                              >
+                                Mark Picked Up
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })()
+                    ) : (
+                      <CustomSelect
+                        value={order.status}
+                        disabled={savingId === order._id}
+                        onChange={(val) => statusChangeHandler(order._id, val)}
+                        options={userInfo?.isDeliveryAgent ? DELIVERY_STATUS_OPTIONS : STATUS_OPTIONS}
+                        className={`text-xs font-semibold rounded-full border-0 ${statusColor[order.status]}`}
+                      />
+                    )}
                   </td>
-                  <td className="px-4 py-3">
-                    <Link to={`/order/${order._id}`} className="font-medium text-brand-600 hover:underline">
-                      View
-                    </Link>
-                  </td>
+                  {!userInfo?.isDeliveryAgent && (
+                    <td className="px-4 py-3">
+                      <Link to={`/order/${order._id}`} className="font-medium text-brand-600 hover:underline">
+                        View
+                      </Link>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

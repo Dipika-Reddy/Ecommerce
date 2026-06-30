@@ -65,19 +65,9 @@ const getProducts = asyncHandler(async (req, res) => {
     },
   });
 
-  // Deduplicate by name
-  const distinctProducts = [];
-  const seenNames = new Set();
-  for (const p of allProducts) {
-    if (!seenNames.has(p.name)) {
-      seenNames.add(p.name);
-      distinctProducts.push(p);
-    }
-  }
-
-  const count = distinctProducts.length;
+  const count = allProducts.length;
   const startIndex = pageSize * (page - 1);
-  const products = distinctProducts.slice(startIndex, startIndex + pageSize);
+  const products = allProducts.slice(startIndex, startIndex + pageSize);
 
   // Map database ids to _id format for frontend compatibility
   const formattedProducts = products.map((product) => ({
