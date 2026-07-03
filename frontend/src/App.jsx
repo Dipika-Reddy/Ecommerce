@@ -25,6 +25,7 @@ import DeliveryLoginScreen from './screens/DeliveryLoginScreen';
 import HomeScreen from './screens/HomeScreen';
 import ProductScreen from './screens/ProductScreen';
 import CartScreen from './screens/CartScreen';
+import WishlistScreen from './screens/WishlistScreen';
 
 // Checkout + account (protected)
 import ShippingScreen from './screens/ShippingScreen';
@@ -71,6 +72,7 @@ const App = () => {
       <Route path="/search/:keyword" element={userInfo?.isDeliveryAgent ? <Navigate to="/delivery/orderlist" replace /> : <StandardLayout><HomeScreen /></StandardLayout>} />
       <Route path="/product/:id" element={userInfo?.isDeliveryAgent ? <Navigate to="/delivery/orderlist" replace /> : <StandardLayout><ProductScreen /></StandardLayout>} />
       <Route path="/cart" element={userInfo?.isDeliveryAgent ? <Navigate to="/delivery/orderlist" replace /> : <StandardLayout><CartScreen /></StandardLayout>} />
+      <Route path="/wishlist" element={userInfo?.isDeliveryAgent ? <Navigate to="/delivery/orderlist" replace /> : <StandardLayout><WishlistScreen /></StandardLayout>} />
 
       <Route path="/login" element={<StandardLayout><LoginScreen /></StandardLayout>} />
       <Route path="/register" element={<StandardLayout><RegisterScreen /></StandardLayout>} />

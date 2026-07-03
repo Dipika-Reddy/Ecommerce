@@ -457,7 +457,7 @@ const getOrders = asyncHandler(async (req, res) => {
 // @route   PUT /api/orders/:id/return
 // @access  Private (Customer)
 const requestReturn = asyncHandler(async (req, res) => {
-  const { reason } = req.body;
+  const { reason, returnImage } = req.body;
   const order = await prisma.order.findUnique({
     where: { id: req.params.id }
   });
@@ -470,6 +470,7 @@ const requestReturn = asyncHandler(async (req, res) => {
       where: { id: req.params.id },
       data: {
         returnReason: reason,
+        returnImage: returnImage,
         returnStatus: 'Requested',
       },
       include: { orderItems: true, payments: true }

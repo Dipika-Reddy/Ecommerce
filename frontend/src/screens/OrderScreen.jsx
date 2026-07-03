@@ -13,6 +13,7 @@ import {
   useCompleteReturnMutation,
   useProcessRefundMutation,
 } from '../features/api/ordersApiSlice';
+import { useUploadProductImageMutation } from '../features/api/productsApiSlice';
 import Loader from '../components/Loader';
 import Message from '../components/Message';
 import CustomSelect from '../components/CustomSelect';
@@ -112,11 +113,26 @@ const OrderScreen = () => {
 
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [returnReason, setReturnReason] = useState('');
+  const [returnImage, setReturnImage] = useState('');
+
+  const [uploadProductImage, { isLoading: loadingUpload }] = useUploadProductImageMutation();
+
+  const uploadReturnFileHandler = async (e) => {
+    const formData = new FormData();
+    formData.append('image', e.target.files[0]);
+    try {
+      const res = await uploadProductImage(formData).unwrap();
+      setReturnImage(res.image);
+      toast.success('Image uploaded successfully');
+    } catch (err) {
+      toast.error(err?.data?.message || err.error);
+    }
+  };
 
   const handleRequestReturn = async (e) => {
     e.preventDefault();
     try {
-      await requestReturn({ orderId, reason: returnReason }).unwrap();
+      await requestReturn({ orderId, reason: returnReason, returnImage }).unwrap();
       toast.success('Return requested successfully!');
       setShowReturnModal(false);
       refetch();
@@ -480,8 +496,13 @@ const OrderScreen = () => {
                       <strong>Status: </strong> 
                       <span className="text-brand-600 font-bold">{order.returnStatus === 'Collected' ? 'Successful' : order.returnStatus}</span>
                     </p>
-                    {order.returnReason && (
-                      <p className="text-xs text-gray-600 italic bg-slate-50 p-2 rounded border border-slate-100">"{order.returnReason}"</p>
+                    <h4 className="text-sm font-semibold text-gray-800 mb-1">Reason for Return</h4>
+                    <p className="text-sm text-gray-600 bg-white p-3 rounded-xl border border-gray-100">{order.returnReason}</p>
+                    {order.returnImage && (
+                      <div className="mt-3">
+                        <h4 className="text-sm font-semibold text-gray-800 mb-1">Attached Image</h4>
+                        <img src={order.returnImage} alt="Return attachment" className="max-h-32 rounded object-cover border border-gray-200" />
+                      </div>
                     )}
 
                     {canManageOrder && order.returnStatus === 'Requested' && (
@@ -866,6 +887,37 @@ const OrderScreen = () => {
                   className="w-full bg-slate-50 border border-slate-200 text-slate-700 px-3.5 py-2.5 rounded-xl text-sm outline-none focus:border-brand-500 focus:bg-white resize-none font-medium"
                   placeholder="Tell us why you want to return this..."
                 ></textarea>
+              </div>
+
+              <div className="text-left">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Add Photo (Required)</label>
+                <input
+                  type="file"
+                  id="return-image-upload"
+                  accept="image/*"
+                  onChange={uploadReturnFileHandler}
+                  required
+                  className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 transition"
+                />
+                {loadingUpload && <Loader />}
+                {returnImage && (
+                  <div className="relative inline-block mt-2">
+                    <img src={returnImage} alt="Preview" className="max-h-24 rounded object-cover border border-slate-200" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReturnImage('');
+                        document.getElementById('return-image-upload').value = '';
+                      }}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow hover:bg-red-600 transition"
+                      title="Remove image"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-3 pt-2">

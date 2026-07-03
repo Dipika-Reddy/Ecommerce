@@ -1,5 +1,6 @@
 import asyncHandler from 'express-async-handler';
 import bcrypt from 'bcryptjs';
+import nodemailer from 'nodemailer';
 import { prisma } from '../config/db.js';
 import generateToken from '../utils/generateToken.js';
 
@@ -323,6 +324,108 @@ const verifySeller = asyncHandler(async (req, res) => {
   });
 });
 
+// @desc    Initiate forgot password
+// @route   POST /api/users/forgot-password
+// @access  Public
+const forgotPassword = asyncHandler(async (req, res) => {
+  const { email } = req.body;
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user) {
+    res.status(404);
+    throw new Error('User not found');
+  }
+
+  // Generate 6 digit OTP
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+  const resetOtpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+  await prisma.user.update({
+    where: { email },
+    data: { resetOtp: otp, resetOtpExpiry },
+  });
+
+  try {
+    // Generate test SMTP service account from ethereal.email
+    const testAccount = await nodemailer.createTestAccount();
+    const transporter = nodemailer.createTransport({
+      host: testAccount.smtp.host,
+      port: testAccount.smtp.port,
+      secure: testAccount.smtp.secure,
+      auth: {
+        user: testAccount.user,
+        pass: testAccount.pass,
+      },
+    });
+
+    const info = await transporter.sendMail({
+      from: '"Buybee Support" <support@buybee.com>',
+      to: email,
+      subject: 'Password Reset OTP',
+      text: `Your OTP for password reset is: ${otp}. It will expire in 10 minutes.`,
+    });
+
+    console.log('Preview URL: %s', nodemailer.getTestMessageUrl(info));
+    console.log(`[DEVELOPMENT] OTP for ${email} is: ${otp}`);
+    
+    res.json({ message: 'OTP sent to email' });
+  } catch (error) {
+    res.status(500);
+    throw new Error('Email could not be sent');
+  }
+});
+
+// @desc    Verify OTP
+// @route   POST /api/users/verify-otp
+// @access  Public
+const verifyOtp = asyncHandler(async (req, res) => {
+  const { email, otp } = req.body;
+  const user = await prisma.user.findUnique({ where: { email } });
+
+  if (!user || user.resetOtp !== otp) {
+    res.status(400);
+    throw new Error('Invalid OTP');
+  }
+
+  if (user.resetOtpExpiry < new Date()) {
+    res.status(400);
+    throw new Error('OTP expired');
+  }
+
+  res.json({ message: 'OTP verified successfully' });
+});
+
+// @desc    Reset password
+// @route   POST /api/users/reset-password
+// @access  Public
+const resetPassword = asyncHandler(async (req, res) => {
+  const { email, otp, newPassword } = req.body;
+  const user = await prisma.user.findUnique({ where: { email } });
+
+  if (!user || user.resetOtp !== otp) {
+    res.status(400);
+    throw new Error('Invalid OTP');
+  }
+
+  if (user.resetOtpExpiry < new Date()) {
+    res.status(400);
+    throw new Error('OTP expired');
+  }
+
+  const salt = await bcrypt.genSalt(10);
+  const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+  await prisma.user.update({
+    where: { email },
+    data: {
+      password: hashedPassword,
+      resetOtp: null,
+      resetOtpExpiry: null,
+    },
+  });
+
+  res.json({ message: 'Password reset successful' });
+});
+
 export {
   registerUser,
   loginUser,
@@ -333,4 +436,7 @@ export {
   deleteUser,
   updateUser,
   verifySeller,
+  forgotPassword,
+  verifyOtp,
+  resetPassword,
 };

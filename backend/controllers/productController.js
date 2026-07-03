@@ -249,7 +249,7 @@ const deleteProduct = asyncHandler(async (req, res) => {
 // @route   POST /api/products/:id/reviews
 // @access  Private
 const createProductReview = asyncHandler(async (req, res) => {
-  const { rating, comment } = req.body;
+  const { rating, comment, image } = req.body;
 
   const product = await prisma.product.findUnique({
     where: { id: req.params.id },
@@ -277,6 +277,7 @@ const createProductReview = asyncHandler(async (req, res) => {
       name: req.user.name,
       rating: Number(rating),
       comment,
+      image,
       userId: req.user.id,
       productId: req.params.id,
     },

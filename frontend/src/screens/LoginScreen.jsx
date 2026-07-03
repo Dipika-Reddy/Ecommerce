@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
 import { Eye, EyeOff } from 'lucide-react';
-import { useLoginMutation } from '../features/api/usersApiSlice';
+import { useLoginMutation, useForgotPasswordMutation, useVerifyOtpMutation, useResetPasswordMutation } from '../features/api/usersApiSlice';
 import { setCredentials } from '../features/auth/authSlice';
 import { isApprovedSeller, isPlatformAdmin, isSuperAdminUser, isSellerUser } from '../utils/userRoles';
 import Loader from '../components/Loader';
@@ -19,6 +19,16 @@ const LoginScreen = () => {
   const redirect = searchParams.get('redirect') || '';
 
   const [login, { isLoading }] = useLoginMutation();
+  const [forgotPassword, { isLoading: isForgotLoading }] = useForgotPasswordMutation();
+  const [verifyOtp, { isLoading: isVerifyLoading }] = useVerifyOtpMutation();
+  const [resetPassword, { isLoading: isResetLoading }] = useResetPasswordMutation();
+
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotStep, setForgotStep] = useState(1);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [otp, setOtp] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const { userInfo } = useSelector((state) => state.auth);
 
   useEffect(() => {
@@ -55,6 +65,35 @@ const LoginScreen = () => {
       toast.success('Successfully signed in');
     } catch (err) {
       toast.error(err?.data?.message || 'Login failed');
+    }
+  };
+
+  const handleForgotSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      if (forgotStep === 1) {
+        await forgotPassword({ email: forgotEmail }).unwrap();
+        toast.success('OTP sent to your email!');
+        setForgotStep(2);
+      } else if (forgotStep === 2) {
+        await verifyOtp({ email: forgotEmail, otp }).unwrap();
+        toast.success('OTP verified!');
+        setForgotStep(3);
+      } else if (forgotStep === 3) {
+        if (newPassword !== confirmPassword) {
+          return toast.error('Passwords do not match');
+        }
+        await resetPassword({ email: forgotEmail, otp, newPassword }).unwrap();
+        toast.success('Password reset successful! Please log in.');
+        setShowForgotModal(false);
+        setForgotStep(1);
+        setForgotEmail('');
+        setOtp('');
+        setNewPassword('');
+        setConfirmPassword('');
+      }
+    } catch (err) {
+      toast.error(err?.data?.message || 'Action failed');
     }
   };
 
@@ -107,9 +146,13 @@ const LoginScreen = () => {
               <label className="block text-[13px] font-bold text-gray-900">
                 Password
               </label>
-              <a href="#" className="text-[12px] text-brand-600 hover:text-brand-700 hover:underline">
+              <button 
+                type="button" 
+                onClick={() => { setShowForgotModal(true); setForgotStep(1); }} 
+                className="text-[12px] text-brand-600 hover:text-brand-700 hover:underline"
+              >
                 Forgot Password?
-              </a>
+              </button>
             </div>
             <div className="relative">
               <input
@@ -140,17 +183,6 @@ const LoginScreen = () => {
             {isLoading ? <Loader /> : 'Sign In'}
           </button>
         </form>
-
-        <div className="mt-5 text-xs leading-relaxed text-gray-500">
-          By continuing, you agree to Buybee's{' '}
-          <a href="#" className="text-brand-600 hover:underline">Conditions of Use</a> and{' '}
-          <a href="#" className="text-brand-600 hover:underline">Privacy Notice</a>.
-        </div>
-
-        <div className="mt-4 pt-4 border-t border-gray-100 flex items-center gap-1.5 text-xs text-gray-500">
-          <input type="checkbox" id="keep" className="rounded text-brand-500 focus:ring-brand-500" />
-          <label htmlFor="keep">Keep me signed in</label>
-        </div>
       </div>
 
       {/* New to Buybee */}
@@ -168,6 +200,82 @@ const LoginScreen = () => {
           Create your Buybee account
         </Link>
       </div>
+
+      {showForgotModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden">
+            <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-center">
+              <h3 className="text-lg font-bold text-gray-900">Forgot Password</h3>
+              <button onClick={() => setShowForgotModal(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+            </div>
+            <div className="px-6 py-5">
+              <form onSubmit={handleForgotSubmit} className="space-y-4">
+                {forgotStep === 1 && (
+                  <div>
+                    <label className="block text-sm font-bold text-gray-900 mb-1">Email address</label>
+                    <input
+                      type="email"
+                      required
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      placeholder="Enter registered email"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm"
+                    />
+                  </div>
+                )}
+                {forgotStep === 2 && (
+                  <div>
+                    <label className="block text-sm font-bold text-gray-900 mb-1">Enter OTP</label>
+                    <p className="text-xs text-gray-500 mb-2">Check your terminal (or Ethereal email) for the OTP.</p>
+                    <input
+                      type="text"
+                      required
+                      value={otp}
+                      onChange={(e) => setOtp(e.target.value)}
+                      placeholder="6-digit code"
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm tracking-widest font-mono"
+                    />
+                  </div>
+                )}
+                {forgotStep === 3 && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-bold text-gray-900 mb-1">New Password</label>
+                      <input
+                        type="password"
+                        required
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-bold text-gray-900 mb-1">Confirm Password</label>
+                      <input
+                        type="password"
+                        required
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm"
+                      />
+                    </div>
+                  </>
+                )}
+                
+                <button
+                  type="submit"
+                  disabled={isForgotLoading || isVerifyLoading || isResetLoading}
+                  className="w-full bg-brand-600 hover:bg-brand-700 text-white py-2.5 rounded-lg text-sm font-bold mt-2"
+                >
+                  {isForgotLoading || isVerifyLoading || isResetLoading ? 'Processing...' : (
+                    forgotStep === 1 ? 'Send OTP' : forgotStep === 2 ? 'Verify OTP' : 'Confirm Changes'
+                  )}
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

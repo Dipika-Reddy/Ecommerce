@@ -5,6 +5,7 @@ import { toast } from 'react-toastify';
 import {
   useGetProductDetailsQuery,
   useCreateReviewMutation,
+  useUploadProductImageMutation,
 } from '../features/api/productsApiSlice';
 import { addToCart } from '../features/cart/cartSlice';
 import Rating from '../components/Rating';
@@ -30,6 +31,9 @@ const ProductScreen = () => {
   const [color, setColor] = useState('');
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
+  const [image, setImage] = useState('');
+
+  const [uploadProductImage, { isLoading: loadingUpload }] = useUploadProductImageMutation();
   const [isZoomed, setIsZoomed] = useState(false);
   const [zoomStyle, setZoomStyle] = useState({ transformOrigin: 'center center' });
 
@@ -81,6 +85,18 @@ const ProductScreen = () => {
     navigate('/cart');
   };
 
+  const uploadFileHandler = async (e) => {
+    const formData = new FormData();
+    formData.append('image', e.target.files[0]);
+    try {
+      const res = await uploadProductImage(formData).unwrap();
+      setImage(res.image);
+      toast.success(res.message);
+    } catch (err) {
+      toast.error(err?.data?.message || err.error);
+    }
+  };
+
   // --- Submit a review ---
   const submitReviewHandler = async (e) => {
     e.preventDefault();
@@ -89,10 +105,11 @@ const ProductScreen = () => {
       return;
     }
     try {
-      await createReview({ productId, rating, comment }).unwrap();
-      toast.success('Review submitted');
+      await createReview({ productId, rating, comment, image }).unwrap();
+      toast.success('Review submitted successfully');
       setRating(0);
       setComment('');
+      setImage('');
       refetch();
     } catch (err) {
       toast.error(err?.data?.message || 'Failed to submit review');
@@ -258,6 +275,9 @@ const ProductScreen = () => {
                 </div>
                 <Rating value={review.rating} text="" />
                 <p className="mt-2 text-sm text-gray-700">{review.comment}</p>
+                {review.image && (
+                  <img src={review.image} alt="Review attachment" className="mt-3 max-h-32 rounded object-cover" />
+                )}
               </div>
             ))}
           </div>
@@ -300,6 +320,35 @@ const ProductScreen = () => {
                   required
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
                 />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-gray-700">Add Photo (Optional)</label>
+                <input
+                  type="file"
+                  id="review-image-upload"
+                  accept="image/*"
+                  onChange={uploadFileHandler}
+                  className="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100"
+                />
+                {loadingUpload && <Loader />}
+                {image && (
+                  <div className="relative inline-block mt-2">
+                    <img src={image} alt="Preview" className="max-h-24 rounded object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setImage('');
+                        document.getElementById('review-image-upload').value = '';
+                      }}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow hover:bg-red-600 transition"
+                      title="Remove image"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
               </div>
               <button
                 type="submit"

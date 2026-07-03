@@ -304,6 +304,7 @@ const ProfileScreen = () => {
                 </div>
               </div>
             </div>
+
           ) : (
             <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
               <h1 className="mb-6 text-xl font-extrabold text-[#2a1758]">Edit Profile</h1>
@@ -377,6 +378,27 @@ const ProfileScreen = () => {
             </div>
           )}
 
+          {/* Helpline Card */}
+          <a
+            href="tel:+918008008000"
+            className="block rounded-2xl border border-green-100 bg-green-50 p-5 shadow-sm hover:bg-green-100 transition-colors duration-150 group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-500 shadow-sm group-hover:bg-green-600 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                </svg>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold text-green-700 uppercase tracking-wide">Customer Helpline</p>
+                <p className="text-base font-extrabold text-green-800 tracking-wide">+91 800-800-8000</p>
+                <p className="text-[11px] text-green-600 mt-0.5">Mon–Sat, 9 AM – 6 PM</p>
+              </div>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-400 ml-auto shrink-0 group-hover:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </div>
+          </a>
 
         </div>
 
@@ -525,45 +547,6 @@ const ProfileScreen = () => {
         </div>
         )}
         
-        {/* --- My Wishlist --- */}
-        {!isManagement && (
-          <div className="md:col-span-2 space-y-4">
-            <div className="flex items-center gap-2">
-              <Heart className="w-5 h-5 text-red-500 fill-red-500" />
-              <h1 className="text-xl font-bold text-gray-900">My Wishlist</h1>
-            </div>
-            
-            {wishlistItems.length === 0 ? (
-              <Message variant="info">
-                Your wishlist is empty. <Link to="/" className="underline font-bold text-brand-600">Discover products</Link>
-              </Message>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-                {wishlistItems.map((item) => (
-                  <div key={item._id} className="border border-gray-200 rounded-lg p-3 relative group bg-white shadow-sm hover:shadow-md transition">
-                    <button
-                      onClick={() => {
-                        dispatch(removeFromWishlist(item._id));
-                        toast.info('Removed from wishlist');
-                      }}
-                      className="absolute top-2 right-2 p-1.5 bg-white/80 hover:bg-red-50 rounded-full text-gray-400 hover:text-red-500 z-10 opacity-0 group-hover:opacity-100 transition-all shadow-sm"
-                      title="Remove"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                    <Link to={`/product/${item._id}`} className="block">
-                      <div className="aspect-square bg-white flex items-center justify-center overflow-hidden rounded mb-2">
-                        <img src={item.image} alt={item.name} className="max-h-full object-contain group-hover:scale-105 transition duration-200" />
-                      </div>
-                      <h3 className="text-xs font-medium text-gray-800 line-clamp-2 leading-tight group-hover:text-brand-600">{item.name}</h3>
-                      <p className="text-sm font-bold text-gray-900 mt-1">₹{item.price.toFixed(2)}</p>
-                    </Link>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
       </div>
       {/* Cancellation Refund Details Modal */}
       {cancelModalOpen && (() => {

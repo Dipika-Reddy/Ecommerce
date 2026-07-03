@@ -10,6 +10,9 @@ import {
   deleteUser,
   updateUser,
   verifySeller,
+  forgotPassword,
+  verifyOtp,
+  resetPassword,
 } from '../controllers/userController.js';
 import { protect, admin, superAdmin } from '../middleware/authMiddleware.js';
 
@@ -19,5 +22,8 @@ router.post('/logout', protect, logoutUser);
 router.route('/profile').get(protect, getUserProfile).put(protect, updateUserProfile);
 router.route('/:id/verify-seller').put(protect, admin, verifySeller);
 router.route('/:id').put(protect, admin, updateUser).delete(protect, admin, deleteUser);
+router.post('/forgot-password', forgotPassword);
+router.post('/verify-otp', verifyOtp);
+router.post('/reset-password', resetPassword);
 
 export default router;

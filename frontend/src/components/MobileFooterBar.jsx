@@ -45,9 +45,9 @@ const MobileFooterBar = () => {
 
   const logoutHandler = async () => {
     try { await logoutApiCall().unwrap(); } catch (_) {}
+    navigate('/');
     dispatch(logout());
     setProfileOpen(false);
-    navigate('/');
   };
 
   const handleCategoryNav = (cat) => {

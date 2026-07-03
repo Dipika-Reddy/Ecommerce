@@ -6,6 +6,7 @@ import { useGetProductCategoriesQuery } from '../features/api/productsApiSlice';
 import { logout } from '../features/auth/authSlice';
 import DeliveryLocationPicker from './DeliveryLocationPicker';
 import { isApprovedSeller, isPlatformAdmin, isSuperAdminUser, isDeliveryAgent, getStaffBasePath } from '../utils/userRoles';
+import { removeFromWishlist } from '../features/wishlist/wishlistSlice';
 
 const Header = () => {
   const dispatch = useDispatch();
@@ -14,6 +15,7 @@ const Header = () => {
 
   const { cartItems } = useSelector((state) => state.cart);
   const { userInfo } = useSelector((state) => state.auth);
+  const { wishlistItems } = useSelector((state) => state.wishlist);
   const isDelivery = userInfo && isDeliveryAgent(userInfo);
   const isManagement = userInfo && (isApprovedSeller(userInfo) || isPlatformAdmin(userInfo) || isSuperAdminUser(userInfo) || isDelivery);
   const [logoutApiCall] = useLogoutMutation();
@@ -22,15 +24,21 @@ const Header = () => {
   const [searchCategory, setSearchCategory] = useState('All');
   const [searchKeyword, setSearchKeyword] = useState('');
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [wishlistOpen, setWishlistOpen] = useState(false);
   const dropdownRef = useRef(null);
+  const wishlistRef = useRef(null);
 
   const cartCount = cartItems.length;
+  const wishlistCount = wishlistItems.length;
 
   // Close the dropdowns when clicking outside
   useEffect(() => {
     const handleOutside = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setDropdownOpen(false);
+      }
+      if (wishlistRef.current && !wishlistRef.current.contains(e.target)) {
+        setWishlistOpen(false);
       }
     };
     document.addEventListener('mousedown', handleOutside);
@@ -42,9 +50,9 @@ const Header = () => {
       await logoutApiCall().unwrap();
     } catch (err) {
     } finally {
+      navigate('/');
       dispatch(logout());
       setDropdownOpen(false);
-      navigate('/');
     }
   };
 
@@ -148,6 +156,24 @@ const Header = () => {
                   {/* Count Badge on Cart */}
                   <span className="absolute -top-2 -right-2 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-brand-500 px-1 text-[10px] font-black text-white border border-white shadow-sm">
                     {cartCount}
+                  </span>
+                </div>
+              </Link>
+            )}
+
+            {/* Wishlist Heart Icon — beside cart, hidden on mobile */}
+            {!isManagement && (
+              <Link
+                to="/wishlist"
+                className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded border border-transparent hover:bg-slate-50 transition-colors duration-150 text-slate-700"
+                title="My Wishlist"
+              >
+                <div className="relative flex items-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                  </svg>
+                  <span className="absolute -top-2 -right-2 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-black text-white border border-white shadow-sm">
+                    {wishlistCount}
                   </span>
                 </div>
               </Link>
@@ -376,6 +402,22 @@ const Header = () => {
       {!isDelivery && (
         <div className="hidden md:block bg-slate-50 border-t border-slate-200/60 text-slate-600 py-1.5">
           <div className="mx-auto flex max-w-7xl items-center gap-1 px-4 text-xs font-semibold overflow-x-auto scrollbar-none">
+            {/* Home button */}
+            <button
+              onClick={() => navigate('/home')}
+              className={`flex items-center gap-1 px-3 py-1.5 rounded border transition-colors duration-150 whitespace-nowrap ${
+                !activeCategory
+                  ? 'border-brand-500 font-bold bg-brand-50 text-brand-650'
+                  : 'border-transparent hover:bg-slate-200/50'
+              }`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+              </svg>
+              Home
+            </button>
+            {/* Divider */}
+            <span className="text-slate-300 select-none">|</span>
             {/* Quick category pills */}
             {['Fashion', 'Creative', 'Mobiles', 'Furniture', 'Beauty', 'Electronics'].map((cat) => (
               <button

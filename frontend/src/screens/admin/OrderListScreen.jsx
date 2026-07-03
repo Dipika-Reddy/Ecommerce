@@ -82,6 +82,7 @@ const OrderListScreen = () => {
               <tr>
                 <th className="px-4 py-3">Order ID</th>
                 <th className="px-4 py-3">Customer</th>
+                <th className="px-4 py-3">Phone</th>
                 <th className="px-4 py-3">Date</th>
                 <th className="px-4 py-3">Total</th>
                 <th className="px-4 py-3">Paid</th>
@@ -95,13 +96,22 @@ const OrderListScreen = () => {
                   <td className="px-4 py-3 font-mono text-xs align-top">{order._id.slice(-8)}</td>
                   <td className="px-4 py-3">
                     <div className="font-bold">{order.user?.name || 'Deleted user'}</div>
-                    {order.user?.phoneNumber && (
-                      <div className="text-xs text-gray-500 mt-0.5">📞 {order.user.phoneNumber}</div>
-                    )}
                     {order.shippingAddress && (
                       <div className="text-xs text-gray-500 mt-0.5">
                         📍 {order.shippingAddress.address}, {order.shippingAddress.city} {order.shippingAddress.postalCode}
                       </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 align-top">
+                    {order.user?.phoneNumber ? (
+                      <a href={`tel:${order.user.phoneNumber}`} className="inline-flex items-center gap-1.5 bg-brand-50 hover:bg-brand-100 text-brand-700 border border-brand-200 px-3 py-1.5 rounded-lg text-xs font-semibold transition">
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                        </svg>
+                        {order.user.phoneNumber}
+                      </a>
+                    ) : (
+                      <span className="text-gray-400 text-xs italic">Not provided</span>
                     )}
                   </td>
                   <td className="px-4 py-3 align-top">{new Date(order.createdAt).toLocaleDateString()}</td>
