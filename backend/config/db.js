@@ -19,7 +19,7 @@ const pool = new pg.Pool({
   min: 1,
   max: 10,
   idleTimeoutMillis: 30000,       // close idle connections after 30s
-  connectionTimeoutMillis: 10000, // fail fast if no connection in 10s
+  connectionTimeoutMillis: 30000, // wait up to 30s for Supabase free-tier cold starts
   keepAlive: true,
   keepAliveInitialDelayMillis: 10000,
 });
