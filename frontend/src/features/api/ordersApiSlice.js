@@ -46,10 +46,10 @@ export const ordersApiSlice = apiSlice.injectEndpoints({
     }),
 
     requestReturn: builder.mutation({
-      query: ({ orderId, reason, returnImage }) => ({
+      query: ({ orderId, reason, returnImage, refundDetails }) => ({
         url: `${ORDERS_URL}/${orderId}/return`,
         method: 'PUT',
-        body: { reason, returnImage },
+        body: { reason, returnImage, refundDetails },
       }),
       invalidatesTags: (result, error, { orderId }) => [
         { type: 'Order', id: orderId },

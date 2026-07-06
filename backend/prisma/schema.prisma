@@ -89,6 +89,7 @@ model Order {
   returnReason    String?
   returnImage     String?
   returnStatus    String?     // 'Requested', 'Approved', 'Collected', 'Rejected'
+  refundDetails   String?     // To store UPI/Card details for COD returns
   isRefunded      Boolean     @default(false)
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt

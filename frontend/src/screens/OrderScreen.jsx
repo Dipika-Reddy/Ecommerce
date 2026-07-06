@@ -115,6 +115,7 @@ const OrderScreen = () => {
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [returnReason, setReturnReason] = useState('');
   const [returnImage, setReturnImage] = useState('');
+  const [refundDetails, setRefundDetails] = useState('');
   const [returnImageLoading, setReturnImageLoading] = useState(false);
   const [assignModalOpen, setAssignModalOpen] = useState(false);
 
@@ -134,8 +135,12 @@ const OrderScreen = () => {
 
   const handleRequestReturn = async (e) => {
     e.preventDefault();
+    if (order.paymentMethod === 'Cash on Delivery' && !refundDetails) {
+      toast.error('Please provide refund details for COD orders');
+      return;
+    }
     try {
-      await requestReturn({ orderId, reason: returnReason, returnImage }).unwrap();
+      await requestReturn({ orderId, reason: returnReason, returnImage, refundDetails }).unwrap();
       toast.success('Return requested successfully!');
       setShowReturnModal(false);
       refetch();
@@ -389,16 +394,18 @@ const OrderScreen = () => {
             </div>
 
             {/* Agent Info Section */}
-            {(isSuperAdminUser(userInfo) || userInfo.isAdmin || isSellerUser(userInfo)) && (
+            {(isSuperAdminUser(userInfo) || userInfo.isAdmin || isSellerUser(userInfo) || (isOrderOwner && order.deliveryAgent)) && (
               <div className="rounded-md border bg-white p-4">
                 <div className="flex justify-between items-center mb-3">
                   <h2 className="font-bold text-gray-800">Delivery Agent</h2>
-                  <button
-                    onClick={() => setAssignModalOpen(true)}
-                    className="text-xs font-semibold text-brand-600 hover:text-brand-800 border border-brand-200 hover:border-brand-300 rounded px-2 py-1 transition-colors"
-                  >
-                    {order.deliveryAgent ? 'Change Agent' : 'Assign Agent'}
-                  </button>
+                  {(isSuperAdminUser(userInfo) || userInfo.isAdmin || isSellerUser(userInfo)) && (
+                    <button
+                      onClick={() => setAssignModalOpen(true)}
+                      className="text-xs font-semibold text-brand-600 hover:text-brand-800 border border-brand-200 hover:border-brand-300 rounded px-2 py-1 transition-colors"
+                    >
+                      {order.deliveryAgent ? 'Change Agent' : 'Assign Agent'}
+                    </button>
+                  )}
                 </div>
                 {order.deliveryAgent ? (
                   <div className="bg-orange-50/50 rounded-lg p-3 border border-orange-100 flex flex-col gap-1">
@@ -562,10 +569,16 @@ const OrderScreen = () => {
                   <div className="space-y-3">
                     <p className="text-sm">
                       <strong>Status: </strong> 
-                      <span className="text-brand-600 font-bold">{order.returnStatus === 'Collected' ? 'Successful' : order.returnStatus}</span>
+                      <span className="text-brand-600 font-bold">{order.isRefunded ? 'Refunded' : (order.returnStatus === 'Collected' ? 'Successful' : order.returnStatus)}</span>
                     </p>
                     <h4 className="text-sm font-semibold text-gray-800 mb-1">Reason for Return</h4>
                     <p className="text-sm text-gray-600 bg-white p-3 rounded-xl border border-gray-100">{order.returnReason}</p>
+                    {order.refundDetails && (
+                      <>
+                        <h4 className="text-sm font-semibold text-gray-800 mb-1 mt-2">Refund Details (UPI/Bank)</h4>
+                        <p className="text-sm text-gray-600 bg-white p-3 rounded-xl border border-gray-100">{order.refundDetails}</p>
+                      </>
+                    )}
                     {order.returnImage && (
                       <div className="mt-3">
                         <h4 className="text-sm font-semibold text-gray-800 mb-1">Attached Image</h4>
@@ -987,6 +1000,21 @@ const OrderScreen = () => {
                   </div>
                 )}
               </div>
+
+              {order.paymentMethod === 'Cash on Delivery' && (
+                <div className="text-left">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Refund Payment Details (Required)</label>
+                  <p className="text-[10px] text-slate-500 mb-2">Since this was a Cash on Delivery order, please provide your UPI ID or Bank Account Details to receive your refund.</p>
+                  <textarea
+                    required
+                    rows="2"
+                    value={refundDetails}
+                    onChange={(e) => setRefundDetails(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 text-slate-700 px-3.5 py-2.5 rounded-xl text-sm outline-none focus:border-brand-500 focus:bg-white resize-none font-medium"
+                    placeholder="e.g. UPI: 9876543210@ybl OR Acct: 12345678, IFSC: ABCD0001234"
+                  ></textarea>
+                </div>
+              )}
 
               <div className="flex gap-3 pt-2">
                 <button
