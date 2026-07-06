@@ -40,6 +40,12 @@ export const usersApiSlice = apiSlice.injectEndpoints({
       keepUnusedDataFor: 5,
     }),
 
+    getDeliveryAgents: builder.query({
+      query: () => `${USERS_URL}/delivery-agents`,
+      providesTags: ['User'],
+      keepUnusedDataFor: 5,
+    }),
+
     deleteUser: builder.mutation({
       query: (userId) => ({
         url: `${USERS_URL}/${userId}`,
@@ -104,4 +110,5 @@ export const {
   useForgotPasswordMutation,
   useVerifyOtpMutation,
   useResetPasswordMutation,
+  useGetDeliveryAgentsQuery,
 } = usersApiSlice;

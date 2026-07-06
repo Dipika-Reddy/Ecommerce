@@ -149,6 +149,15 @@ const getOrderById = asyncHandler(async (req, res) => {
           id: true,
           name: true,
           email: true,
+          phoneNumber: true,
+        },
+      },
+      deliveryAgent: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phoneNumber: true,
         },
       },
       orderItems: {
@@ -182,9 +191,11 @@ const getOrderById = asyncHandler(async (req, res) => {
     (item) => item.product && item.product.userId === req.user.id
   );
   const isSeller = sellerItems.length > 0;
+  
+  const isAssignedAgent = order.deliveryAgentId === req.user.id;
 
-  // Customers, Super Admins, Admins, and Sellers who own at least one item can view the order.
-  if (!isCustomer && !isSuperAdmin && !isAdmin && !isSeller) {
+  // Customers, Super Admins, Admins, Sellers who own an item, and the assigned agent can view.
+  if (!isCustomer && !isSuperAdmin && !isAdmin && !isSeller && !isAssignedAgent) {
     res.status(403);
     throw new Error('Not authorized to view this order');
   }
@@ -396,6 +407,14 @@ const getOrders = asyncHandler(async (req, res) => {
           phoneNumber: true,
         },
       },
+      deliveryAgent: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phoneNumber: true,
+        },
+      },
       orderItems: {
         include: {
           product: {
@@ -420,7 +439,7 @@ const getOrders = asyncHandler(async (req, res) => {
     }
     
     if (req.user.isDeliveryAgent) {
-      if (order.status === 'Shipped' || order.status === 'Delivered') {
+      if (order.deliveryAgentId === req.user.id) {
         filteredOrders.push(formatOrder(order));
       }
       continue;
@@ -552,6 +571,57 @@ const processRefund = asyncHandler(async (req, res) => {
   }
 });
 
+// @desc    Assign delivery agent to order
+// @route   PUT /api/orders/:id/assign-agent
+// @access  Private (Admin/Seller)
+const assignDeliveryAgent = asyncHandler(async (req, res) => {
+  const { deliveryAgentId } = req.body;
+  
+  const order = await prisma.order.findUnique({
+    where: { id: req.params.id },
+    include: {
+      orderItems: { include: { product: true } }
+    }
+  });
+
+  if (!order) {
+    res.status(404);
+    throw new Error('Order not found');
+  }
+
+  const isSuperAdmin = req.user.isSuperAdmin;
+  const isAdmin = req.user.isAdmin;
+  const isSeller = order.orderItems.some(
+    (item) => item.product && item.product.userId === req.user.id
+  );
+
+  if (!isSuperAdmin && !isAdmin && !isSeller) {
+    res.status(403);
+    throw new Error('Not authorized to assign agent to this order');
+  }
+
+  const agent = await prisma.user.findUnique({
+    where: { id: deliveryAgentId }
+  });
+
+  if (!agent || !agent.isDeliveryAgent) {
+    res.status(400);
+    throw new Error('Invalid delivery agent');
+  }
+
+  const updatedOrder = await prisma.order.update({
+    where: { id: req.params.id },
+    data: { deliveryAgentId },
+    include: {
+      user: { select: { id: true, name: true, phoneNumber: true } },
+      deliveryAgent: { select: { id: true, name: true, email: true, phoneNumber: true } },
+      orderItems: { include: { product: true } }
+    }
+  });
+
+  res.json(formatOrder(updatedOrder));
+});
+
 export {
   addOrderItems,
   getOrderById,
@@ -563,4 +633,5 @@ export {
   approveReturn,
   completeReturn,
   processRefund,
+  assignDeliveryAgent,
 };

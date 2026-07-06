@@ -6,6 +6,7 @@ import Loader from '../../components/Loader';
 import Message from '../../components/Message';
 import { useSelector } from 'react-redux';
 import CustomSelect from '../../components/CustomSelect';
+import AssignAgentModal from '../../components/AssignAgentModal';
 
 const STATUS_OPTIONS = ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'];
 
@@ -24,6 +25,9 @@ const OrderListScreen = () => {
   const [payOrder] = usePayOrderMutation();
   const [completeReturn] = useCompleteReturnMutation();
   const [savingId, setSavingId] = useState(null);
+  
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [selectedOrderToAssign, setSelectedOrderToAssign] = useState(null);
 
   const DELIVERY_STATUS_OPTIONS = ['Shipped', 'Delivered'];
 
@@ -86,6 +90,7 @@ const OrderListScreen = () => {
                 <th className="px-4 py-3">Date</th>
                 <th className="px-4 py-3">Total</th>
                 <th className="px-4 py-3">Paid</th>
+                <th className="px-4 py-3">Agent</th>
                 <th className="px-4 py-3">Status</th>
                 {!userInfo?.isDeliveryAgent && <th className="px-4 py-3"></th>}
               </tr>
@@ -99,6 +104,27 @@ const OrderListScreen = () => {
                     {order.shippingAddress && (
                       <div className="text-xs text-gray-500 mt-0.5">
                         📍 {order.shippingAddress.address}, {order.shippingAddress.city} {order.shippingAddress.postalCode}
+                        {userInfo?.isDeliveryAgent && (
+                          <a
+                            href={`https://maps.google.com/maps?q=${encodeURIComponent([
+                              order.shippingAddress.address || order.shippingAddress.doorNo,
+                              order.shippingAddress.street,
+                              order.shippingAddress.area,
+                              order.shippingAddress.city,
+                              order.shippingAddress.postalCode || order.shippingAddress.pinCode,
+                              order.shippingAddress.country
+                            ].filter(Boolean).join(', '))}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 ml-2 font-medium bg-blue-50 px-1.5 py-0.5 rounded"
+                          >
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            Map
+                          </a>
+                        )}
                       </div>
                     )}
                   </td>
@@ -138,6 +164,26 @@ const OrderListScreen = () => {
                           </button>
                         )}
                       </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 align-top">
+                    {!userInfo?.isDeliveryAgent ? (
+                      <div className="flex flex-col items-start gap-1">
+                        <span className="text-xs font-semibold text-slate-700">
+                          {order.deliveryAgent ? order.deliveryAgent.name : 'Unassigned'}
+                        </span>
+                        <button
+                          onClick={() => {
+                            setSelectedOrderToAssign(order);
+                            setAssignModalOpen(true);
+                          }}
+                          className="text-[10px] text-brand-600 hover:text-brand-800 font-bold"
+                        >
+                          {order.deliveryAgent ? 'Change' : 'Assign'}
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-xs font-semibold text-slate-700">You</span>
                     )}
                   </td>
                   <td className="px-4 py-3 align-top">
@@ -198,6 +244,19 @@ const OrderListScreen = () => {
             </tbody>
           </table>
         </div>
+      )}
+      
+      {assignModalOpen && selectedOrderToAssign && (
+        <AssignAgentModal
+          isOpen={assignModalOpen}
+          onClose={() => {
+            setAssignModalOpen(false);
+            setSelectedOrderToAssign(null);
+          }}
+          orderId={selectedOrderToAssign._id}
+          currentAgentId={selectedOrderToAssign.deliveryAgentId}
+          shippingAddress={selectedOrderToAssign.shippingAddress}
+        />
       )}
     </div>
   );

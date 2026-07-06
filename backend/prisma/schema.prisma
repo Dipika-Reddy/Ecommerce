@@ -26,7 +26,8 @@ model User {
   updatedAt       DateTime  @updatedAt
   products        Product[]
   reviews         Review[]
-  orders          Order[]
+  orders          Order[]     @relation("CustomerOrder")
+  deliveryOrders  Order[]     @relation("DeliveryAgentOrder")
   payments        Payment[]
 }
 
@@ -69,7 +70,9 @@ model Review {
 model Order {
   id              String      @id @default(uuid())
   userId          String
-  user            User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User        @relation("CustomerOrder", fields: [userId], references: [id], onDelete: Cascade)
+  deliveryAgentId String?
+  deliveryAgent   User?       @relation("DeliveryAgentOrder", fields: [deliveryAgentId], references: [id], onDelete: SetNull)
   orderItems      OrderItem[]
   shippingAddress Json
   paymentMethod   String

@@ -13,13 +13,15 @@ import {
   forgotPassword,
   verifyOtp,
   resetPassword,
+  getDeliveryAgents,
 } from '../controllers/userController.js';
-import { protect, admin, superAdmin } from '../middleware/authMiddleware.js';
+import { protect, admin, seller, superAdmin } from '../middleware/authMiddleware.js';
 
 router.route('/').post(registerUser).get(protect, admin, getUsers);
 router.post('/login', loginUser);
 router.post('/logout', protect, logoutUser);
 router.route('/profile').get(protect, getUserProfile).put(protect, updateUserProfile);
+router.route('/delivery-agents').get(protect, seller, getDeliveryAgents);
 router.route('/:id/verify-seller').put(protect, admin, verifySeller);
 router.route('/:id').put(protect, admin, updateUser).delete(protect, admin, deleteUser);
 router.post('/forgot-password', forgotPassword);

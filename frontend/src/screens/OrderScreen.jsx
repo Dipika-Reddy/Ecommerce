@@ -17,6 +17,7 @@ import { useUploadProductImageMutation } from '../features/api/productsApiSlice'
 import Loader from '../components/Loader';
 import Message from '../components/Message';
 import CustomSelect from '../components/CustomSelect';
+import AssignAgentModal from '../components/AssignAgentModal';
 import { isSellerUser, isSuperAdminUser } from '../utils/userRoles';
 
 const STATUS_OPTIONS = ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'];
@@ -114,6 +115,8 @@ const OrderScreen = () => {
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [returnReason, setReturnReason] = useState('');
   const [returnImage, setReturnImage] = useState('');
+  const [returnImageLoading, setReturnImageLoading] = useState(false);
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
 
   const [uploadProductImage, { isLoading: loadingUpload }] = useUploadProductImageMutation();
 
@@ -333,17 +336,50 @@ const OrderScreen = () => {
         <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-3">
           <div className="space-y-4 md:col-span-2">
             <div className="rounded-md border bg-white p-4">
-              <h2 className="mb-2 font-bold text-gray-800">Shipping &amp; Delivery</h2>
-              <p className="text-sm text-gray-600">
-                <strong>Address: </strong>{order.shippingAddress.address}, {order.shippingAddress.city}{' '}
-                {order.shippingAddress.postalCode}, {order.shippingAddress.country}
-              </p>
-              {order.shippingAddress.deliveryMethod && (
-                <p className="text-sm text-gray-600 mt-1">
-                  <strong>Method: </strong>{order.shippingAddress.deliveryMethod}
-                </p>
-              )}
-              <div className="mt-2 no-print">
+              <div className="flex justify-between items-start gap-4">
+                <div>
+                  <h2 className="mb-2 font-bold text-gray-800">Shipping &amp; Delivery</h2>
+                  <p className="text-sm text-gray-600">
+                    <strong>Address: </strong>{order.shippingAddress.address}, {order.shippingAddress.city}{' '}
+                    {order.shippingAddress.postalCode}, {order.shippingAddress.country}
+                  </p>
+                  {order.shippingAddress.deliveryMethod && (
+                    <p className="text-sm text-gray-600 mt-1">
+                      <strong>Method: </strong>{order.shippingAddress.deliveryMethod}
+                    </p>
+                  )}
+                  {order.shippingAddress.phoneNumber && (
+                    <p className="text-sm text-gray-600 mt-1">
+                      <strong>Phone: </strong>
+                      <a href={`tel:${order.shippingAddress.phoneNumber}`} className="text-blue-600 hover:underline">
+                        {order.shippingAddress.phoneNumber}
+                      </a>
+                    </p>
+                  )}
+                </div>
+                {userInfo?.isDeliveryAgent && (
+                  <a
+                    href={`https://maps.google.com/maps?q=${encodeURIComponent([
+                      order.shippingAddress.address || order.shippingAddress.doorNo,
+                      order.shippingAddress.street,
+                      order.shippingAddress.area,
+                      order.shippingAddress.city,
+                      order.shippingAddress.postalCode || order.shippingAddress.pinCode,
+                      order.shippingAddress.country
+                    ].filter(Boolean).join(', '))}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex flex-col items-center justify-center bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-100 p-2.5 rounded-xl transition-colors shrink-0 shadow-sm"
+                  >
+                    <svg className="w-5 h-5 mb-1 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <span className="text-[10px] font-bold uppercase tracking-wider">Open Map</span>
+                  </a>
+                )}
+              </div>
+              <div className="mt-3 no-print">
                 {order.isDelivered ? (
                   <Message variant="success">Delivered on {new Date(order.deliveredAt).toLocaleString()}</Message>
                 ) : (
@@ -351,6 +387,38 @@ const OrderScreen = () => {
                 )}
               </div>
             </div>
+
+            {/* Agent Info Section */}
+            {(isSuperAdminUser(userInfo) || userInfo.isAdmin || isSellerUser(userInfo)) && (
+              <div className="rounded-md border bg-white p-4">
+                <div className="flex justify-between items-center mb-3">
+                  <h2 className="font-bold text-gray-800">Delivery Agent</h2>
+                  <button
+                    onClick={() => setAssignModalOpen(true)}
+                    className="text-xs font-semibold text-brand-600 hover:text-brand-800 border border-brand-200 hover:border-brand-300 rounded px-2 py-1 transition-colors"
+                  >
+                    {order.deliveryAgent ? 'Change Agent' : 'Assign Agent'}
+                  </button>
+                </div>
+                {order.deliveryAgent ? (
+                  <div className="bg-orange-50/50 rounded-lg p-3 border border-orange-100 flex flex-col gap-1">
+                    <p className="text-sm font-semibold text-slate-800">{order.deliveryAgent.name}</p>
+                    <div className="flex gap-4 text-xs text-slate-600 mt-1">
+                      <div className="flex items-center gap-1">
+                        <svg className="w-3.5 h-3.5 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                        <a href={`tel:${order.deliveryAgent.phoneNumber}`} className="hover:underline">{order.deliveryAgent.phoneNumber || 'N/A'}</a>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <svg className="w-3.5 h-3.5 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                        <a href={`mailto:${order.deliveryAgent.email}`} className="hover:underline">{order.deliveryAgent.email}</a>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">No delivery agent assigned yet.</p>
+                )}
+              </div>
+            )}
 
             <div className="rounded-md border bg-white p-4">
               <h2 className="mb-2 font-bold text-gray-800">Payment Method</h2>
@@ -939,6 +1007,16 @@ const OrderScreen = () => {
             </form>
           </div>
         </div>
+      )}
+      
+      {assignModalOpen && (
+        <AssignAgentModal
+          isOpen={assignModalOpen}
+          onClose={() => setAssignModalOpen(false)}
+          orderId={order._id}
+          currentAgentId={order.deliveryAgent?.id || order.deliveryAgentId}
+          shippingAddress={order.shippingAddress}
+        />
       )}
     </div>
   );

@@ -426,6 +426,22 @@ const resetPassword = asyncHandler(async (req, res) => {
   res.json({ message: 'Password reset successful' });
 });
 
+// @desc    Get delivery agents
+// @route   GET /api/users/delivery-agents
+// @access  Private/Admin/Seller
+const getDeliveryAgents = asyncHandler(async (req, res) => {
+  const agents = await prisma.user.findMany({
+    where: { isDeliveryAgent: true },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phoneNumber: true,
+    },
+  });
+  res.json(agents);
+});
+
 export {
   registerUser,
   loginUser,
@@ -439,4 +455,5 @@ export {
   forgotPassword,
   verifyOtp,
   resetPassword,
+  getDeliveryAgents,
 };

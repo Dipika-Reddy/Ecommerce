@@ -11,6 +11,7 @@ import {
   approveReturn,
   completeReturn,
   processRefund,
+  assignDeliveryAgent,
 } from '../controllers/orderController.js';
 import { protect, seller } from '../middleware/authMiddleware.js';
 
@@ -23,5 +24,6 @@ router.put('/:id/return', protect, requestReturn);
 router.put('/:id/return/approve', protect, seller, approveReturn);
 router.put('/:id/return/complete', protect, completeReturn);
 router.put('/:id/return/refund', protect, seller, processRefund);
+router.put('/:id/assign-agent', protect, seller, assignDeliveryAgent);
 
 export default router;

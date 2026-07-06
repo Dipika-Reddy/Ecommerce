@@ -94,6 +94,19 @@ export const ordersApiSlice = apiSlice.injectEndpoints({
       ],
     }),
 
+    assignDeliveryAgent: builder.mutation({
+      query: ({ orderId, deliveryAgentId }) => ({
+        url: `${ORDERS_URL}/${orderId}/assign-agent`,
+        method: 'PUT',
+        body: { deliveryAgentId },
+      }),
+      invalidatesTags: (result, error, { orderId }) => [
+        { type: 'Order', id: orderId },
+        { type: 'Order', id: 'LIST' },
+        'Order'
+      ],
+    }),
+
     getMyOrders: builder.query({
       query: () => `${ORDERS_URL}/myorders`,
       providesTags: ['Order'],
@@ -178,4 +191,5 @@ export const {
   useApproveReturnMutation,
   useCompleteReturnMutation,
   useProcessRefundMutation,
+  useAssignDeliveryAgentMutation,
 } = ordersApiSlice;
