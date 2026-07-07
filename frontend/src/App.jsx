@@ -10,6 +10,8 @@ import AdminRoute from './components/AdminRoute';
 import SuperAdminRoute from './components/SuperAdminRoute';
 import SellerRoute from './components/SellerRoute';
 import DeliveryRoute from './components/DeliveryRoute';
+import SupportRoute from './components/SupportRoute';
+import SupportCallPanel from './components/SupportCallPanel';
 
 // Landing & auth (bare layout — no shared Header/Footer)
 import LandingScreen from './screens/LandingScreen';
@@ -44,6 +46,7 @@ import DeliveryPaymentsScreen from './screens/admin/DeliveryPaymentsScreen';
 // Platform admin screens (shared UI for admin + superadmin)
 import UserListScreen from './screens/admin/UserListScreen';
 import VerifySellersScreen from './screens/admin/VerifySellersScreen';
+import CouponListScreen from './screens/admin/CouponListScreen';
 
 const StandardLayout = ({ children }) => (
   <div className="flex min-h-screen flex-col">
@@ -58,9 +61,10 @@ const App = () => {
   const { userInfo } = useSelector((state) => state.auth);
 
   return (
-    <Routes>
-      {/* Bare-layout routes */}
-      <Route path="/" element={<LandingScreen />} />
+    <>
+      <Routes>
+        {/* Bare-layout routes */}
+        <Route path="/" element={<LandingScreen />} />
       <Route path="/signup" element={<SignupScreen />} />
       <Route path="/seller" element={<SellerLoginScreen />} />
       <Route path="/admin" element={<AdminLoginScreen />} />
@@ -68,11 +72,15 @@ const App = () => {
       <Route path="/delivery" element={<DeliveryLoginScreen />} />
 
       {/* Standard layout routes */}
-      <Route path="/home" element={userInfo?.isDeliveryAgent ? <Navigate to="/delivery/orderlist" replace /> : <StandardLayout><HomeScreen /></StandardLayout>} />
-      <Route path="/search/:keyword" element={userInfo?.isDeliveryAgent ? <Navigate to="/delivery/orderlist" replace /> : <StandardLayout><HomeScreen /></StandardLayout>} />
-      <Route path="/product/:id" element={userInfo?.isDeliveryAgent ? <Navigate to="/delivery/orderlist" replace /> : <StandardLayout><ProductScreen /></StandardLayout>} />
-      <Route path="/cart" element={userInfo?.isDeliveryAgent ? <Navigate to="/delivery/orderlist" replace /> : <StandardLayout><CartScreen /></StandardLayout>} />
-      <Route path="/wishlist" element={userInfo?.isDeliveryAgent ? <Navigate to="/delivery/orderlist" replace /> : <StandardLayout><WishlistScreen /></StandardLayout>} />
+      <Route path="/home" element={
+        userInfo?.isDeliveryAgent ? <Navigate to="/delivery/orderlist" replace /> : 
+        userInfo?.isSupport ? <Navigate to="/support/orders" replace /> :
+        <StandardLayout><HomeScreen /></StandardLayout>
+      } />
+      <Route path="/search/:keyword" element={userInfo?.isDeliveryAgent ? <Navigate to="/delivery/orderlist" replace /> : userInfo?.isSupport ? <Navigate to="/support/orders" replace /> : <StandardLayout><HomeScreen /></StandardLayout>} />
+      <Route path="/product/:id" element={userInfo?.isDeliveryAgent ? <Navigate to="/delivery/orderlist" replace /> : userInfo?.isSupport ? <Navigate to="/support/orders" replace /> : <StandardLayout><ProductScreen /></StandardLayout>} />
+      <Route path="/cart" element={userInfo?.isDeliveryAgent ? <Navigate to="/delivery/orderlist" replace /> : userInfo?.isSupport ? <Navigate to="/support/orders" replace /> : <StandardLayout><CartScreen /></StandardLayout>} />
+      <Route path="/wishlist" element={userInfo?.isDeliveryAgent ? <Navigate to="/delivery/orderlist" replace /> : userInfo?.isSupport ? <Navigate to="/support/orders" replace /> : <StandardLayout><WishlistScreen /></StandardLayout>} />
 
       <Route path="/login" element={<StandardLayout><LoginScreen /></StandardLayout>} />
       <Route path="/register" element={<StandardLayout><RegisterScreen /></StandardLayout>} />
@@ -96,6 +104,10 @@ const App = () => {
       <Route
         path="/delivery-dashboard"
         element={userInfo?.isDeliveryAgent ? <Navigate to="/delivery/orderlist" replace /> : <Navigate to="/login" replace />}
+      />
+      <Route
+        path="/support-dashboard"
+        element={userInfo?.isSupport ? <Navigate to="/support/orders" replace /> : <Navigate to="/login" replace />}
       />
 
       <Route element={<PrivateRoute />}>
@@ -126,14 +138,22 @@ const App = () => {
       <Route element={<AdminRoute />}>
         <Route path="/admin/userlist" element={<StandardLayout><UserListScreen /></StandardLayout>} />
         <Route path="/admin/verifysellers" element={<StandardLayout><VerifySellersScreen /></StandardLayout>} />
+        <Route path="/admin/couponlist" element={<StandardLayout><CouponListScreen /></StandardLayout>} />
       </Route>
 
       {/* Super admin dashboard (same pages as admin) */}
       <Route element={<SuperAdminRoute />}>
         <Route path="/superadmin/userlist" element={<StandardLayout><UserListScreen /></StandardLayout>} />
         <Route path="/superadmin/verifysellers" element={<StandardLayout><VerifySellersScreen /></StandardLayout>} />
+        <Route path="/superadmin/couponlist" element={<StandardLayout><CouponListScreen /></StandardLayout>} />
+      </Route>
+      {/* Support Team dashboard */}
+      <Route element={<SupportRoute />}>
+        <Route path="/support/orders" element={<StandardLayout><OrderListScreen /></StandardLayout>} />
       </Route>
     </Routes>
+    <SupportCallPanel />
+    </>
   );
 };
 

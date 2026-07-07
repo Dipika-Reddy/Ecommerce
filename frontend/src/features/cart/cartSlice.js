@@ -33,6 +33,8 @@ const getCartFromStorage = () => {
           paymentMethod: 'Mock Stripe',
           deliveryMethod: 'Standard Shipping',
           shippingPrice: 0,
+          coupon: null,
+          couponDiscount: 0,
         };
     
     if (isNonBuyer(user)) {
@@ -46,6 +48,8 @@ const getCartFromStorage = () => {
       paymentMethod: 'Mock Stripe',
       deliveryMethod: 'Standard Shipping',
       shippingPrice: 0,
+      coupon: null,
+      couponDiscount: 0,
     };
   }
 };
@@ -72,7 +76,25 @@ const updateCartPrices = (state, user) => {
   }
 
   state.taxPrice = round2(0.08 * state.itemsPrice);
-  state.totalPrice = round2(state.itemsPrice + state.shippingPrice + state.taxPrice);
+
+  let discount = 0;
+  if (state.coupon) {
+    if (state.itemsPrice < state.coupon.minPurchase) {
+      state.coupon = null;
+    } else {
+      if (state.coupon.discountType === 'PERCENTAGE') {
+        discount = round2((state.coupon.discountValue / 100) * state.itemsPrice);
+      } else {
+        discount = round2(state.coupon.discountValue);
+      }
+      if (discount > state.itemsPrice) {
+        discount = state.itemsPrice;
+      }
+    }
+  }
+  state.couponDiscount = discount;
+
+  state.totalPrice = round2(state.itemsPrice - discount + state.shippingPrice + state.taxPrice);
 
   const key = getCartKey(currentUser);
   localStorage.setItem(key, JSON.stringify(state));
@@ -83,6 +105,7 @@ const initialState = {
   itemsPrice: 0,
   shippingPrice: getCartFromStorage().shippingPrice ?? 0,
   taxPrice: 0,
+  couponDiscount: getCartFromStorage().couponDiscount ?? 0,
   totalPrice: 0,
 };
 updateCartPrices(initialState);
@@ -151,6 +174,20 @@ const cartSlice = createSlice({
     clearCartItems: (state) => {
       const user = getInitialUser();
       state.cartItems = [];
+      state.coupon = null;
+      state.couponDiscount = 0;
+      updateCartPrices(state, user);
+    },
+
+    applyCoupon: (state, action) => {
+      const user = getInitialUser();
+      state.coupon = action.payload;
+      updateCartPrices(state, user);
+    },
+
+    removeCoupon: (state) => {
+      const user = getInitialUser();
+      state.coupon = null;
       updateCartPrices(state, user);
     },
   },
@@ -166,7 +203,8 @@ const cartSlice = createSlice({
               shippingAddress: {},
               paymentMethod: 'Mock Stripe',
               deliveryMethod: 'Standard Shipping',
-              shippingPrice: 0,
+              coupon: null,
+              couponDiscount: 0,
             };
 
         state.cartItems = userCart.cartItems || [];
@@ -174,6 +212,8 @@ const cartSlice = createSlice({
         state.paymentMethod = userCart.paymentMethod || 'Mock Stripe';
         state.deliveryMethod = userCart.deliveryMethod || 'Standard Shipping';
         state.shippingPrice = userCart.shippingPrice ?? 0;
+        state.coupon = userCart.coupon || null;
+        state.couponDiscount = userCart.couponDiscount ?? 0;
         updateCartPrices(state, user);
       })
       .addCase(logout, (state) => {
@@ -185,7 +225,8 @@ const cartSlice = createSlice({
               shippingAddress: {},
               paymentMethod: 'Mock Stripe',
               deliveryMethod: 'Standard Shipping',
-              shippingPrice: 0,
+              coupon: null,
+              couponDiscount: 0,
             };
 
         state.cartItems = guestCart.cartItems || [];
@@ -193,6 +234,8 @@ const cartSlice = createSlice({
         state.paymentMethod = guestCart.paymentMethod || 'Mock Stripe';
         state.deliveryMethod = guestCart.deliveryMethod || 'Standard Shipping';
         state.shippingPrice = guestCart.shippingPrice ?? 0;
+        state.coupon = guestCart.coupon || null;
+        state.couponDiscount = guestCart.couponDiscount ?? 0;
         updateCartPrices(state, null);
       });
   },
@@ -206,6 +249,8 @@ export const {
   savePaymentMethod,
   saveDeliveryDetails,
   clearCartItems,
+  applyCoupon,
+  removeCoupon,
 } = cartSlice.actions;
 
 export default cartSlice.reducer;

@@ -10,6 +10,7 @@ import Message from '../components/Message';
 import { Shield, Sparkles, Check, ToggleLeft, ToggleRight, Trash2, Heart } from 'lucide-react';
 import { removeFromWishlist } from '../features/wishlist/wishlistSlice';
 import { isApprovedSeller, isPlatformAdmin, isSuperAdminUser, isDeliveryAgent } from '../utils/userRoles';
+import CallSimulationModal from '../components/CallSimulationModal';
 
 const statusColor = {
   Pending: 'bg-gray-100 text-gray-700',
@@ -36,6 +37,8 @@ const ProfileScreen = () => {
   const [isBuzz, setIsBuzz] = useState(() => {
     return localStorage.getItem('buybee_buzz_subscribed') === 'true';
   });
+
+  const [callModalOpen, setCallModalOpen] = useState(false);
   const [buzzPlan, setBuzzPlan] = useState(() => {
     return localStorage.getItem('buybee_buzz_plan') || 'Monthly';
   });
@@ -379,9 +382,9 @@ const ProfileScreen = () => {
           )}
 
           {/* Helpline Card */}
-          <a
-            href="tel:+918008008000"
-            className="block rounded-2xl border border-green-100 bg-green-50 p-5 shadow-sm hover:bg-green-100 transition-colors duration-150 group"
+          <button
+            onClick={() => setCallModalOpen(true)}
+            className="block w-full text-left rounded-2xl border border-green-100 bg-green-50 p-5 shadow-sm hover:bg-green-100 transition-colors duration-150 group"
           >
             <div className="flex items-center gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-500 shadow-sm group-hover:bg-green-600 transition-colors">
@@ -392,13 +395,13 @@ const ProfileScreen = () => {
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold text-green-700 uppercase tracking-wide">Customer Helpline</p>
                 <p className="text-base font-extrabold text-green-800 tracking-wide">+91 800-800-8000</p>
-                <p className="text-[11px] text-green-600 mt-0.5">Mon–Sat, 9 AM – 6 PM</p>
+                <p className="text-[11px] text-green-600 mt-0.5">Click to Call Support Team</p>
               </div>
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-400 ml-auto shrink-0 group-hover:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
             </div>
-          </a>
+          </button>
 
         </div>
 
@@ -904,6 +907,7 @@ const ProfileScreen = () => {
           </div>
         </div>
       )}
+      <CallSimulationModal isOpen={callModalOpen} onClose={() => setCallModalOpen(false)} />
     </div>
   );
 };

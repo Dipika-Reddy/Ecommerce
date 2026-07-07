@@ -29,7 +29,7 @@ const formatOrder = (order) => {
 // @route   POST /api/orders
 // @access  Private
 const addOrderItems = asyncHandler(async (req, res) => {
-  const { orderItems, shippingAddress, paymentMethod, shippingPrice: clientShippingPrice } = req.body;
+  const { orderItems, shippingAddress, paymentMethod, shippingPrice: clientShippingPrice, couponCode } = req.body;
 
   if (!orderItems || orderItems.length === 0) {
     res.status(400);
@@ -79,7 +79,31 @@ const addOrderItems = asyncHandler(async (req, res) => {
 
   const shippingPrice = clientShippingPrice !== undefined ? Number(clientShippingPrice) : (itemsPrice > 100 ? 0 : 10);
   const taxPrice = Number((0.03 * itemsPrice).toFixed(2)); // flat 3% tax
-  const totalPrice = Number((itemsPrice + shippingPrice + taxPrice).toFixed(2));
+  
+  let couponDiscount = 0.0;
+  let appliedCouponCode = null;
+
+  if (couponCode) {
+    const normalizedCode = couponCode.toUpperCase().trim();
+    const coupon = await prisma.coupon.findUnique({
+      where: { code: normalizedCode },
+    });
+
+    if (coupon && coupon.isActive && itemsPrice >= coupon.minPurchase) {
+      appliedCouponCode = coupon.code;
+      if (coupon.discountType === 'PERCENTAGE') {
+        couponDiscount = Number(((coupon.discountValue / 100) * itemsPrice).toFixed(2));
+      } else if (coupon.discountType === 'FIXED') {
+        couponDiscount = Number(coupon.discountValue.toFixed(2));
+      }
+      // Clamp discount to items price
+      if (couponDiscount > itemsPrice) {
+        couponDiscount = itemsPrice;
+      }
+    }
+  }
+
+  const totalPrice = Number((itemsPrice - couponDiscount + shippingPrice + taxPrice).toFixed(2));
 
   // Create Order with nested OrderItems using Prisma Transaction
   const createdOrder = await prisma.order.create({
@@ -91,6 +115,8 @@ const addOrderItems = asyncHandler(async (req, res) => {
       shippingPrice,
       taxPrice,
       totalPrice,
+      couponCode: appliedCouponCode,
+      couponDiscount,
       orderItems: {
         create: validatedOrderItems.map((item) => ({
           name: item.name,
@@ -592,11 +618,12 @@ const assignDeliveryAgent = asyncHandler(async (req, res) => {
 
   const isSuperAdmin = req.user.isSuperAdmin;
   const isAdmin = req.user.isAdmin;
+  const isSupport = req.user.isSupport;
   const isSeller = order.orderItems.some(
     (item) => item.product && item.product.userId === req.user.id
   );
 
-  if (!isSuperAdmin && !isAdmin && !isSeller) {
+  if (!isSuperAdmin && !isAdmin && !isSeller && !isSupport) {
     res.status(403);
     throw new Error('Not authorized to assign agent to this order');
   }
@@ -605,14 +632,22 @@ const assignDeliveryAgent = asyncHandler(async (req, res) => {
     where: { id: deliveryAgentId }
   });
 
-  if (!agent || !agent.isDeliveryAgent) {
+  if (!agent || !agent.isDeliveryAgent || agent.deliveryStatus !== 'APPROVED') {
     res.status(400);
-    throw new Error('Invalid delivery agent');
+    throw new Error('Selected user is not an approved delivery agent');
   }
+
+  const assignedBy = isSupport
+    ? `Support Team (${req.user.name})`
+    : isSuperAdmin
+      ? `Superadmin (${req.user.name})`
+      : isAdmin
+        ? `Admin (${req.user.name})`
+        : `Seller (${req.user.name})`;
 
   const updatedOrder = await prisma.order.update({
     where: { id: req.params.id },
-    data: { deliveryAgentId },
+    data: { deliveryAgentId, assignedBy },
     include: {
       user: { select: { id: true, name: true, phoneNumber: true } },
       deliveryAgent: { select: { id: true, name: true, email: true, phoneNumber: true } },

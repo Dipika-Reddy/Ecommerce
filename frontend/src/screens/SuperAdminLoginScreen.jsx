@@ -21,7 +21,7 @@ const SuperAdminLoginScreen = () => {
 
   useEffect(() => {
     if (userInfo && isSuperAdminUser(userInfo)) {
-      navigate('/superadmin/userlist', { replace: true });
+      navigate('/home', { replace: true });
     }
   }, [userInfo, navigate]);
 
@@ -37,7 +37,7 @@ const SuperAdminLoginScreen = () => {
 
       dispatch(setCredentials(res));
       toast.success(`Welcome back, ${res.name}`);
-      navigate('/superadmin/userlist');
+      navigate('/home');
     } catch (err) {
       toast.error(err?.data?.message || 'Login failed');
     }

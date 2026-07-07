@@ -24,11 +24,10 @@ const OrderListScreen = () => {
   const [updateOrderStatus] = useUpdateOrderStatusMutation();
   const [payOrder] = usePayOrderMutation();
   const [completeReturn] = useCompleteReturnMutation();
+  const [customerFilter, setCustomerFilter] = useState('');
   const [savingId, setSavingId] = useState(null);
-  
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [selectedOrderToAssign, setSelectedOrderToAssign] = useState(null);
-
   const DELIVERY_STATUS_OPTIONS = ['Shipped', 'Delivered'];
 
   const statusChangeHandler = async (orderId, status) => {
@@ -69,16 +68,36 @@ const OrderListScreen = () => {
     }
   };
 
+  const filteredOrders = orders
+    ? orders.filter((order) => {
+        if (!customerFilter) return true;
+        const nameMatch = order.user?.name?.toLowerCase().includes(customerFilter.toLowerCase());
+        const emailMatch = order.user?.email?.toLowerCase().includes(customerFilter.toLowerCase());
+        return nameMatch || emailMatch;
+      })
+    : [];
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-6">
-      <h1 className="mb-5 text-2xl font-bold text-gray-900">All Orders</h1>
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
+        <h1 className="text-2xl font-bold text-gray-900">All Orders</h1>
+        <div className="w-full sm:w-72">
+          <input
+            type="text"
+            value={customerFilter}
+            onChange={(e) => setCustomerFilter(e.target.value)}
+            placeholder="Search by customer name or email..."
+            className="w-full bg-white border border-gray-300 rounded-xl px-4 py-2 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-brand-500"
+          />
+        </div>
+      </div>
 
       {isLoading ? (
         <Loader />
       ) : error ? (
         <Message variant="danger">{error?.data?.message}</Message>
-      ) : orders.length === 0 ? (
-        <Message variant="info">No orders have been placed yet.</Message>
+      ) : filteredOrders.length === 0 ? (
+        <Message variant="info">No matching orders found.</Message>
       ) : (
         <div className="overflow-x-auto rounded-md border bg-white">
           <table className="w-full text-left text-sm">
@@ -90,13 +109,13 @@ const OrderListScreen = () => {
                 <th className="px-4 py-3">Date</th>
                 <th className="px-4 py-3">Total</th>
                 <th className="px-4 py-3">Paid</th>
-                <th className="px-4 py-3">Agent</th>
+                {!userInfo?.isDeliveryAgent && <th className="px-4 py-3">Agent</th>}
                 <th className="px-4 py-3">Status</th>
                 {!userInfo?.isDeliveryAgent && <th className="px-4 py-3"></th>}
               </tr>
             </thead>
             <tbody>
-              {orders.map((order) => (
+              {filteredOrders.map((order) => (
                 <tr key={order._id} className="border-t">
                   <td className="px-4 py-3 font-mono text-xs align-top">{order._id.slice(-8)}</td>
                   <td className="px-4 py-3">
@@ -166,12 +185,17 @@ const OrderListScreen = () => {
                       </div>
                     )}
                   </td>
-                  <td className="px-4 py-3 align-top">
-                    {!userInfo?.isDeliveryAgent ? (
+                   {!userInfo?.isDeliveryAgent && (
+                    <td className="px-4 py-3 align-top">
                       <div className="flex flex-col items-start gap-1">
                         <span className="text-xs font-semibold text-slate-700">
                           {order.deliveryAgent ? order.deliveryAgent.name : 'Unassigned'}
                         </span>
+                        {order.assignedBy && (
+                          <span className="text-[9px] bg-purple-50 text-purple-700 border border-purple-200 px-1.5 py-0.5 rounded mt-0.5 font-bold">
+                            {order.assignedBy}
+                          </span>
+                        )}
                         <button
                           onClick={() => {
                             setSelectedOrderToAssign(order);
@@ -182,10 +206,8 @@ const OrderListScreen = () => {
                           {order.deliveryAgent ? 'Change' : 'Assign'}
                         </button>
                       </div>
-                    ) : (
-                      <span className="text-xs font-semibold text-slate-700">You</span>
-                    )}
-                  </td>
+                    </td>
+                  )}
                   <td className="px-4 py-3 align-top">
                     {order.isRefunded || order.returnStatus ? (
                       (() => {

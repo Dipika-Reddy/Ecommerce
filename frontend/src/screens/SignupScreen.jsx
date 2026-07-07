@@ -54,6 +54,12 @@ const SignupScreen = () => {
   const [uploading, setUploading] = useState(false);
   const [isPendingSeller, setIsPendingSeller] = useState(false);
 
+  // Delivery Agent verification fields
+  const [passportPhoto, setPassportPhoto] = useState('');
+  const [drivingLicense, setDrivingLicense] = useState('');
+  const [bikeNumberPlate, setBikeNumberPlate] = useState('');
+  const [bikeRegistration, setBikeRegistration] = useState('');
+
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -62,7 +68,7 @@ const SignupScreen = () => {
   const [uploadProductImage] = useUploadProductImageMutation();
   const { userInfo } = useSelector((state) => state.auth);
 
-  const uploadFileHandler = async (e) => {
+  const uploadFileHandler = async (e, type = 'license') => {
     const file = e.target.files[0];
     if (!file) return;
     const formData = new FormData();
@@ -70,10 +76,21 @@ const SignupScreen = () => {
     setUploading(true);
     try {
       const res = await uploadProductImage(formData).unwrap();
-      setLicensePicture(res.image);
-      toast.success('License picture uploaded successfully');
+      if (type === 'license') {
+        setLicensePicture(res.image);
+        toast.success('License picture uploaded successfully');
+      } else if (type === 'passportPhoto') {
+        setPassportPhoto(res.image);
+        toast.success('Passport size photo uploaded successfully');
+      } else if (type === 'drivingLicense') {
+        setDrivingLicense(res.image);
+        toast.success('Driving license uploaded successfully');
+      } else if (type === 'bikeRegistration') {
+        setBikeRegistration(res.image);
+        toast.success('Bike registration document uploaded successfully');
+      }
     } catch (err) {
-      toast.error(err?.data?.message || 'Failed to upload license picture');
+      toast.error(err?.data?.message || 'Failed to upload document');
     } finally {
       setUploading(false);
     }
@@ -125,6 +142,24 @@ const SignupScreen = () => {
         return;
       }
     }
+    if (selectedRole === 'delivery') {
+      if (!passportPhoto) {
+        toast.error('Passport size photo is required');
+        return;
+      }
+      if (!drivingLicense) {
+        toast.error('Driving license is required');
+        return;
+      }
+      if (!bikeNumberPlate) {
+        toast.error('Bike number plate is required');
+        return;
+      }
+      if (!bikeRegistration) {
+        toast.error('Bike registration document is required');
+        return;
+      }
+    }
     try {
       const res = await register({
         name,
@@ -136,6 +171,10 @@ const SignupScreen = () => {
         panNumber: selectedRole === 'seller' ? panNumber : undefined,
         gstNumber: selectedRole === 'seller' ? gstNumber : undefined,
         licensePicture: selectedRole === 'seller' ? licensePicture : undefined,
+        passportPhoto: selectedRole === 'delivery' ? passportPhoto : undefined,
+        drivingLicense: selectedRole === 'delivery' ? drivingLicense : undefined,
+        bikeNumberPlate: selectedRole === 'delivery' ? bikeNumberPlate : undefined,
+        bikeRegistration: selectedRole === 'delivery' ? bikeRegistration : undefined,
       }).unwrap();
       if (res.sellerStatus === 'PENDING') {
         setIsPendingSeller(true);
@@ -361,7 +400,7 @@ const SignupScreen = () => {
                         type="file"
                         accept="image/*"
                         required={!licensePicture}
-                        onChange={uploadFileHandler}
+                        onChange={(e) => uploadFileHandler(e, 'license')}
                         className="text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-amber-50 file:text-amber-700 hover:file:bg-amber-100 cursor-pointer"
                       />
                       {uploading && <div className="text-xs text-amber-600 font-bold">Uploading license image...</div>}
@@ -371,6 +410,97 @@ const SignupScreen = () => {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                           </svg>
                           License uploaded successfully!
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {selectedRole === 'delivery' && (
+                <div className="space-y-4 pt-4 border-t border-slate-100">
+                  <h3 className="text-sm font-extrabold text-slate-800 uppercase tracking-wider text-teal-700">Delivery Agent Verification</h3>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">
+                      Passport Size Image
+                    </label>
+                    <div className="mt-1 flex flex-col gap-2">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        required={!passportPhoto}
+                        onChange={(e) => uploadFileHandler(e, 'passportPhoto')}
+                        className="text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 cursor-pointer"
+                      />
+                      {uploading && <div className="text-xs text-teal-600 font-bold">Uploading passport photo...</div>}
+                      {passportPhoto && (
+                        <div className="flex items-center gap-2 text-xs text-green-600 font-bold">
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Passport photo uploaded successfully!
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">
+                      Driving License
+                    </label>
+                    <div className="mt-1 flex flex-col gap-2">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        required={!drivingLicense}
+                        onChange={(e) => uploadFileHandler(e, 'drivingLicense')}
+                        className="text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 cursor-pointer"
+                      />
+                      {uploading && <div className="text-xs text-teal-600 font-bold">Uploading driving license...</div>}
+                      {drivingLicense && (
+                        <div className="flex items-center gap-2 text-xs text-green-600 font-bold">
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Driving license uploaded successfully!
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">
+                      Bike Number Plate
+                    </label>
+                    <input
+                      type="text"
+                      value={bikeNumberPlate}
+                      required
+                      placeholder="e.g. MH12AB1234"
+                      onChange={(e) => setBikeNumberPlate(e.target.value.toUpperCase())}
+                      className="w-full rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500 bg-white transition-colors"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wide">
+                      Bike Registration Document (RC)
+                    </label>
+                    <div className="mt-1 flex flex-col gap-2">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        required={!bikeRegistration}
+                        onChange={(e) => uploadFileHandler(e, 'bikeRegistration')}
+                        className="text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 cursor-pointer"
+                      />
+                      {uploading && <div className="text-xs text-teal-600 font-bold">Uploading RC image...</div>}
+                      {bikeRegistration && (
+                        <div className="flex items-center gap-2 text-xs text-green-600 font-bold">
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Bike registration uploaded successfully!
                         </div>
                       )}
                     </div>

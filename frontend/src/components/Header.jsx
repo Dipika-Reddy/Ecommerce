@@ -5,7 +5,7 @@ import { useLogoutMutation } from '../features/api/usersApiSlice';
 import { useGetProductCategoriesQuery } from '../features/api/productsApiSlice';
 import { logout } from '../features/auth/authSlice';
 import DeliveryLocationPicker from './DeliveryLocationPicker';
-import { isApprovedSeller, isPlatformAdmin, isSuperAdminUser, isDeliveryAgent, getStaffBasePath } from '../utils/userRoles';
+import { isApprovedSeller, isPlatformAdmin, isSuperAdminUser, isDeliveryAgent, getStaffBasePath, isSupportUser } from '../utils/userRoles';
 import { removeFromWishlist } from '../features/wishlist/wishlistSlice';
 
 const Header = () => {
@@ -17,7 +17,8 @@ const Header = () => {
   const { userInfo } = useSelector((state) => state.auth);
   const { wishlistItems } = useSelector((state) => state.wishlist);
   const isDelivery = userInfo && isDeliveryAgent(userInfo);
-  const isManagement = userInfo && (isApprovedSeller(userInfo) || isPlatformAdmin(userInfo) || isSuperAdminUser(userInfo) || isDelivery);
+  const isSupport = userInfo && isSupportUser(userInfo);
+  const isManagement = userInfo && (isApprovedSeller(userInfo) || isPlatformAdmin(userInfo) || isSuperAdminUser(userInfo) || isDelivery || isSupport);
   const [logoutApiCall] = useLogoutMutation();
   const { data: categories } = useGetProductCategoriesQuery();
 
@@ -285,6 +286,23 @@ const Header = () => {
                     </div>
                   )}
 
+                  {isSupport && (
+                    <div className="border-t border-slate-100 pt-1 mt-1 bg-slate-50/50">
+                      <div className="px-4 pt-1 pb-0.5">
+                        <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
+                          Support Controls
+                        </p>
+                      </div>
+                      <Link
+                        to="/support/orders"
+                        className="block px-4 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                        onClick={() => setDropdownOpen(false)}
+                      >
+                        Help Desk Orders
+                      </Link>
+                    </div>
+                  )}
+
                   {(isPlatformAdmin(userInfo) || isSuperAdminUser(userInfo)) && (
                     <div className="border-t border-slate-100 pt-1 mt-1 bg-slate-50/50">
                       <div className="px-4 pt-1 pb-0.5">
@@ -305,6 +323,13 @@ const Header = () => {
                         onClick={() => setDropdownOpen(false)}
                       >
                         Verify Sellers
+                      </Link>
+                      <Link
+                        to={`${getStaffBasePath(userInfo)}/couponlist`}
+                        className="block px-4 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+                        onClick={() => setDropdownOpen(false)}
+                      >
+                        Manage Coupons
                       </Link>
                       <Link
                         to="/seller/productlist"

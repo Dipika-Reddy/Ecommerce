@@ -72,6 +72,15 @@ export const usersApiSlice = apiSlice.injectEndpoints({
       invalidatesTags: ['User'],
     }),
 
+    verifyDelivery: builder.mutation({
+      query: ({ userId, approve }) => ({
+        url: `${USERS_URL}/${userId}/verify-delivery`,
+        method: 'PUT',
+        body: { approve },
+      }),
+      invalidatesTags: ['User'],
+    }),
+
     forgotPassword: builder.mutation({
       query: (data) => ({
         url: `${USERS_URL}/forgot-password`,
@@ -107,6 +116,7 @@ export const {
   useDeleteUserMutation,
   useUpdateUserMutation,
   useVerifySellerMutation,
+  useVerifyDeliveryMutation,
   useForgotPasswordMutation,
   useVerifyOtpMutation,
   useResetPasswordMutation,

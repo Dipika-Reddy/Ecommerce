@@ -14,12 +14,18 @@ model User {
   isAdmin         Boolean   @default(false)
   isSuperAdmin    Boolean   @default(false)
   isDeliveryAgent Boolean   @default(false)
+  isSupport       Boolean   @default(false)
   shippingAddress Json?
   phoneNumber     String?
   panNumber       String?
   gstNumber       String?
   licensePicture  String?
+  passportPhoto   String?
+  drivingLicense  String?
+  bikeNumberPlate String?
+  bikeRegistration String?
   sellerStatus    String    @default("NONE")
+  deliveryStatus  String    @default("NONE")
   resetOtp        String?
   resetOtpExpiry  DateTime?
   createdAt       DateTime  @default(now())
@@ -91,6 +97,9 @@ model Order {
   returnStatus    String?     // 'Requested', 'Approved', 'Collected', 'Rejected'
   refundDetails   String?     // To store UPI/Card details for COD returns
   isRefunded      Boolean     @default(false)
+  couponCode      String?
+  couponDiscount  Float       @default(0.0)
+  assignedBy      String?
   createdAt       DateTime    @default(now())
   updatedAt       DateTime    @updatedAt
   payments        Payment[]
@@ -137,3 +146,16 @@ model Refund {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 }
+
+model Coupon {
+  id            String   @id @default(uuid())
+  code          String   @unique
+  discountType  String   // 'PERCENTAGE' or 'FIXED'
+  discountValue Float
+  minPurchase   Float    @default(0.0)
+  description   String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+

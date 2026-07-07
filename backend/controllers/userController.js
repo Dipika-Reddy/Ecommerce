@@ -8,7 +8,7 @@ import generateToken from '../utils/generateToken.js';
 // @route   POST /api/users
 // @access  Public
 const registerUser = asyncHandler(async (req, res) => {
-  const { name, email, password, phoneNumber, panNumber, gstNumber, licensePicture, isSellerRequested, isDeliveryAgent } = req.body;
+  const { name, email, password, phoneNumber, panNumber, gstNumber, licensePicture, isSellerRequested, isDeliveryAgent, passportPhoto, drivingLicense, bikeNumberPlate, bikeRegistration } = req.body;
 
   if (!name || !email || !password) {
     res.status(400);
@@ -19,6 +19,13 @@ const registerUser = asyncHandler(async (req, res) => {
     if (!panNumber || !gstNumber || !licensePicture) {
       res.status(400);
       throw new Error('Please provide PAN card number, GST number, and license picture for seller registration');
+    }
+  }
+
+  if (isDeliveryAgent) {
+    if (!passportPhoto || !drivingLicense || !bikeNumberPlate || !bikeRegistration) {
+      res.status(400);
+      throw new Error('Please provide passport photo, driving license, bike number plate, and bike registration documents');
     }
   }
 
@@ -49,6 +56,10 @@ const registerUser = asyncHandler(async (req, res) => {
       panNumber: isSellerRequested ? panNumber : null,
       gstNumber: isSellerRequested ? gstNumber : null,
       licensePicture: isSellerRequested ? licensePicture : null,
+      passportPhoto: isDeliveryAgent ? passportPhoto : null,
+      drivingLicense: isDeliveryAgent ? drivingLicense : null,
+      bikeNumberPlate: isDeliveryAgent ? bikeNumberPlate : null,
+      bikeRegistration: isDeliveryAgent ? bikeRegistration : null,
       sellerStatus,
       isDeliveryAgent: Boolean(isDeliveryAgent),
     },
@@ -91,6 +102,14 @@ const loginUser = asyncHandler(async (req, res) => {
       res.status(403);
       throw new Error('Your seller account application has been rejected.');
     }
+    if (user.isDeliveryAgent && user.deliveryStatus === 'PENDING') {
+      res.status(403);
+      throw new Error('Your delivery agent account is pending approval by the system administrator.');
+    }
+    if (user.isDeliveryAgent && user.deliveryStatus === 'REJECTED') {
+      res.status(403);
+      throw new Error('Your delivery agent account application has been rejected.');
+    }
 
     res.json({
       _id: user.id,
@@ -99,7 +118,9 @@ const loginUser = asyncHandler(async (req, res) => {
       isAdmin: user.isAdmin,
       isSuperAdmin: user.isSuperAdmin,
       isDeliveryAgent: user.isDeliveryAgent,
+      isSupport: user.isSupport,
       sellerStatus: user.sellerStatus,
+      deliveryStatus: user.deliveryStatus,
       phoneNumber: user.phoneNumber,
       token: generateToken(user.id),
     });
@@ -132,7 +153,9 @@ const getUserProfile = asyncHandler(async (req, res) => {
       isAdmin: user.isAdmin,
       isSuperAdmin: user.isSuperAdmin,
       isDeliveryAgent: user.isDeliveryAgent,
+      isSupport: user.isSupport,
       sellerStatus: user.sellerStatus,
+      deliveryStatus: user.deliveryStatus,
       phoneNumber: user.phoneNumber,
       shippingAddress: user.shippingAddress,
     });
@@ -176,8 +199,10 @@ const updateUserProfile = asyncHandler(async (req, res) => {
     isAdmin: updatedUser.isAdmin,
     isSuperAdmin: updatedUser.isSuperAdmin,
     sellerStatus: updatedUser.sellerStatus,
+    deliveryStatus: updatedUser.deliveryStatus,
     phoneNumber: updatedUser.phoneNumber,
     isDeliveryAgent: updatedUser.isDeliveryAgent,
+    isSupport: updatedUser.isSupport,
     token: generateToken(updatedUser.id),
   });
 });
@@ -194,11 +219,17 @@ const getUsers = asyncHandler(async (req, res) => {
       isAdmin: true,
       isSuperAdmin: true,
       sellerStatus: true,
+      deliveryStatus: true,
       isDeliveryAgent: true,
+      isSupport: true,
       phoneNumber: true,
       panNumber: true,
       gstNumber: true,
       licensePicture: true,
+      passportPhoto: true,
+      drivingLicense: true,
+      bikeNumberPlate: true,
+      bikeRegistration: true,
       shippingAddress: true,
       createdAt: true,
       updatedAt: true,
@@ -321,6 +352,41 @@ const verifySeller = asyncHandler(async (req, res) => {
     isAdmin: updatedUser.isAdmin,
     isSuperAdmin: updatedUser.isSuperAdmin,
     sellerStatus: updatedUser.sellerStatus,
+  });
+});
+
+// @desc    Verify delivery agent documents (approve/reject)
+// @route   PUT /api/users/:id/verify-delivery
+// @access  Private/Admin
+const verifyDeliveryAgent = asyncHandler(async (req, res) => {
+  const { approve } = req.body;
+  const user = await prisma.user.findUnique({
+    where: { id: req.params.id },
+  });
+
+  if (!user) {
+    res.status(404);
+    throw new Error('User not found');
+  }
+
+  if (user.deliveryStatus !== 'PENDING') {
+    res.status(400);
+    throw new Error('User is not a pending delivery agent applicant');
+  }
+
+  const updatedUser = await prisma.user.update({
+    where: { id: req.params.id },
+    data: {
+      deliveryStatus: approve ? 'APPROVED' : 'REJECTED',
+    },
+  });
+
+  res.json({
+    _id: updatedUser.id,
+    name: updatedUser.name,
+    email: updatedUser.email,
+    isDeliveryAgent: updatedUser.isDeliveryAgent,
+    deliveryStatus: updatedUser.deliveryStatus,
   });
 });
 
@@ -456,4 +522,5 @@ export {
   verifyOtp,
   resetPassword,
   getDeliveryAgents,
+  verifyDeliveryAgent,
 };

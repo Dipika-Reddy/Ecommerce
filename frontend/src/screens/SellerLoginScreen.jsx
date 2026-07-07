@@ -21,7 +21,7 @@ const SellerLoginScreen = () => {
 
   useEffect(() => {
     if (userInfo && isSellerUser(userInfo) && !isPlatformAdmin(userInfo) && !isSuperAdminUser(userInfo)) {
-      navigate('/seller/productlist', { replace: true });
+      navigate('/home', { replace: true });
     }
   }, [userInfo, navigate]);
 
@@ -37,7 +37,7 @@ const SellerLoginScreen = () => {
 
       dispatch(setCredentials(res));
       toast.success(`Welcome back, ${res.name}`);
-      navigate('/seller/productlist');
+      navigate('/home');
     } catch (err) {
       toast.error(err?.data?.message || 'Login failed');
     }

@@ -21,7 +21,7 @@ const AdminLoginScreen = () => {
 
   useEffect(() => {
     if (userInfo && isPlatformAdmin(userInfo)) {
-      navigate('/admin/userlist', { replace: true });
+      navigate('/home', { replace: true });
     }
   }, [userInfo, navigate]);
 
@@ -37,7 +37,7 @@ const AdminLoginScreen = () => {
 
       dispatch(setCredentials(res));
       toast.success(`Welcome back, ${res.name}`);
-      navigate('/admin/userlist');
+      navigate('/home');
     } catch (err) {
       toast.error(err?.data?.message || 'Login failed');
     }

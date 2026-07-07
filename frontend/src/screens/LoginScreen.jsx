@@ -35,12 +35,6 @@ const LoginScreen = () => {
     if (userInfo) {
       if (redirect && redirect !== '/' && redirect !== '/home') {
         navigate(redirect);
-      } else if (isSuperAdminUser(userInfo)) {
-        navigate('/superadmin/userlist');
-      } else if (isPlatformAdmin(userInfo)) {
-        navigate('/admin/userlist');
-      } else if (isSellerUser(userInfo) && !isPlatformAdmin(userInfo) && !isSuperAdminUser(userInfo)) {
-        navigate('/seller/productlist');
       } else {
         navigate('/home');
       }
