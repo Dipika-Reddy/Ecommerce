@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import nodemailer from 'nodemailer';
 import { prisma } from '../config/db.js';
 import generateToken from '../utils/generateToken.js';
+import { logSecurity, logError, logInfo } from '../utils/logger.js';
 
 // @desc    Register a new user
 // @route   POST /api/users
@@ -30,16 +31,17 @@ const registerUser = asyncHandler(async (req, res) => {
   }
 
   const userExists = await prisma.user.findUnique({
-    where: { email },
+    where: { email: email.toLowerCase().trim() },
   });
 
   if (userExists) {
+    logSecurity('REGISTRATION_ATTEMPT_DUPLICATE_EMAIL', { email });
     res.status(400);
     throw new Error('A user with that email already exists');
   }
 
-  // Hash password explicitly since there are no mongoose middleware hooks in Prisma
-  const salt = await bcrypt.genSalt(10);
+  // Hash password with high work factor (12 rounds for production readiness)
+  const salt = await bcrypt.genSalt(12);
   const hashedPassword = await bcrypt.hash(password, salt);
 
   // If a seller is requested, set status to PENDING and isAdmin to false until verified.
@@ -48,8 +50,8 @@ const registerUser = asyncHandler(async (req, res) => {
 
   const user = await prisma.user.create({
     data: {
-      name,
-      email,
+      name: name.trim(),
+      email: email.toLowerCase().trim(),
       password: hashedPassword,
       isAdmin,
       phoneNumber,
@@ -66,6 +68,7 @@ const registerUser = asyncHandler(async (req, res) => {
   });
 
   if (user) {
+    logSecurity('USER_REGISTERED_SUCCESSFULLY', { userId: user.id, email: user.email });
     res.status(201).json({
       _id: user.id,
       name: user.name,
@@ -88,12 +91,43 @@ const registerUser = asyncHandler(async (req, res) => {
 // @access  Public
 const loginUser = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
+  const normalizedEmail = email.toLowerCase().trim();
 
   const user = await prisma.user.findUnique({
-    where: { email },
+    where: { email: normalizedEmail },
   });
 
-  if (user && (await bcrypt.compare(password, user.password))) {
+  if (!user) {
+    logSecurity('LOGIN_FAILED_USER_NOT_FOUND', { email: normalizedEmail });
+    res.status(401);
+    throw new Error('Invalid email or password');
+  }
+
+  // Account lockout check
+  if (user.lockoutUntil && user.lockoutUntil > new Date()) {
+    logSecurity('LOGIN_BLOCKED_LOCKED_ACCOUNT', { email: normalizedEmail, lockoutUntil: user.lockoutUntil });
+    res.status(403);
+    throw new Error('Account is temporarily locked. Please try again after 15 minutes.');
+  }
+
+  // Progressive delay to prevent timing and brute-force attacks
+  if (user.failedLoginAttempts > 0) {
+    const delay = Math.min(user.failedLoginAttempts * 500, 5000); // progressive delay up to 5 seconds
+    await new Promise(resolve => setTimeout(resolve, delay));
+  }
+
+  const isMatch = await bcrypt.compare(password, user.password);
+
+  if (isMatch) {
+    // Reset lockout counters on success
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        failedLoginAttempts: 0,
+        lockoutUntil: null,
+      },
+    });
+
     if (user.sellerStatus === 'PENDING') {
       res.status(403);
       throw new Error('Your seller account is pending approval by the system administrator.');
@@ -111,6 +145,8 @@ const loginUser = asyncHandler(async (req, res) => {
       throw new Error('Your delivery agent account application has been rejected.');
     }
 
+    logSecurity('USER_LOGIN_SUCCESS', { userId: user.id, email: user.email, roles: { isAdmin: user.isAdmin, isSuperAdmin: user.isSuperAdmin } });
+
     res.json({
       _id: user.id,
       name: user.name,
@@ -125,15 +161,32 @@ const loginUser = asyncHandler(async (req, res) => {
       token: generateToken(user.id),
     });
   } else {
+    // Increment failed login attempts
+    const newFailedAttempts = user.failedLoginAttempts + 1;
+    const updateData = { failedLoginAttempts: newFailedAttempts };
+
+    if (newFailedAttempts >= 5) {
+      updateData.lockoutUntil = new Date(Date.now() + 15 * 60 * 1000); // 15 mins lockout
+      logSecurity('ACCOUNT_LOCKED_OUT', { userId: user.id, email: user.email });
+    }
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: updateData,
+    });
+
+    logSecurity('LOGIN_FAILED_WRONG_PASSWORD', { userId: user.id, email: user.email, attemptCount: newFailedAttempts });
+
     res.status(401);
     throw new Error('Invalid email or password');
   }
 });
 
-// @desc    Logout user (client deletes token; server endpoint kept for symmetry / cookie clearing)
+// @desc    Logout user
 // @route   POST /api/users/logout
 // @access  Private
 const logoutUser = asyncHandler(async (req, res) => {
+  logSecurity('USER_LOGOUT', { userId: req.user?.id });
   res.status(200).json({ message: 'Logged out successfully' });
 });
 
@@ -179,11 +232,11 @@ const updateUserProfile = asyncHandler(async (req, res) => {
   }
 
   const updateData = {};
-  if (req.body.name) updateData.name = req.body.name;
-  if (req.body.email) updateData.email = req.body.email;
+  if (req.body.name) updateData.name = req.body.name.trim();
+  if (req.body.email) updateData.email = req.body.email.toLowerCase().trim();
   if (req.body.phoneNumber) updateData.phoneNumber = req.body.phoneNumber;
   if (req.body.password) {
-    const salt = await bcrypt.genSalt(10);
+    const salt = await bcrypt.genSalt(12);
     updateData.password = await bcrypt.hash(req.body.password, salt);
   }
 
@@ -191,6 +244,8 @@ const updateUserProfile = asyncHandler(async (req, res) => {
     where: { id: req.user.id },
     data: updateData,
   });
+
+  logSecurity('USER_PROFILE_UPDATED', { userId: req.user.id });
 
   res.json({
     _id: updatedUser.id,
@@ -236,7 +291,6 @@ const getUsers = asyncHandler(async (req, res) => {
     },
   });
 
-  // Map database ids to _id format for frontend compatibility
   const formattedUsers = users.map(user => ({
     ...user,
     _id: user.id,
@@ -261,8 +315,8 @@ const deleteUser = asyncHandler(async (req, res) => {
     res.status(400);
     throw new Error('Cannot delete a superadmin user');
   }
-  // Only superadmin can delete admin accounts
   if (user.isAdmin && !req.user.isSuperAdmin) {
+    logSecurity('ADMIN_DELETE_PREVENTED', { adminId: req.user.id, targetId: user.id });
     res.status(403);
     throw new Error('Only superadmins can delete admin accounts');
   }
@@ -271,6 +325,7 @@ const deleteUser = asyncHandler(async (req, res) => {
     where: { id: req.params.id },
   });
 
+  logSecurity('USER_DELETED', { adminId: req.user.id, targetId: user.id });
   res.json({ message: 'User removed' });
 });
 
@@ -282,7 +337,11 @@ const updateUser = asyncHandler(async (req, res) => {
     where: { id: req.params.id },
   });
 
-  // Role changes are restricted to superadmins only
+  if (!user) {
+    res.status(404);
+    throw new Error('User not found');
+  }
+
   const updateData = {
     name: req.body.name ?? user.name,
     email: req.body.email ?? user.email,
@@ -299,6 +358,7 @@ const updateUser = asyncHandler(async (req, res) => {
     req.body.sellerStatus !== undefined ||
     req.body.isDeliveryAgent !== undefined
   ) {
+    logSecurity('ROLE_MODIFICATION_BYPASS_ATTEMPT', { userId: req.user.id, targetId: user.id });
     res.status(403);
     throw new Error('Only superadmins can modify user roles');
   }
@@ -307,6 +367,8 @@ const updateUser = asyncHandler(async (req, res) => {
     where: { id: req.params.id },
     data: updateData,
   });
+
+  logSecurity('USER_ROLES_UPDATED_BY_ADMIN', { adminId: req.user.id, targetId: updatedUser.id, updates: updateData });
 
   res.json({
     _id: updatedUser.id,
@@ -345,6 +407,8 @@ const verifySeller = asyncHandler(async (req, res) => {
     },
   });
 
+  logSecurity('SELLER_VERIFICATION_STATUS_CHANGED', { adminId: req.user.id, targetId: updatedUser.id, approved: approve });
+
   res.json({
     _id: updatedUser.id,
     name: updatedUser.name,
@@ -381,6 +445,8 @@ const verifyDeliveryAgent = asyncHandler(async (req, res) => {
     },
   });
 
+  logSecurity('DELIVERY_VERIFICATION_STATUS_CHANGED', { adminId: req.user.id, targetId: updatedUser.id, approved: approve });
+
   res.json({
     _id: updatedUser.id,
     name: updatedUser.name,
@@ -395,23 +461,25 @@ const verifyDeliveryAgent = asyncHandler(async (req, res) => {
 // @access  Public
 const forgotPassword = asyncHandler(async (req, res) => {
   const { email } = req.body;
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
+  
   if (!user) {
-    res.status(404);
-    throw new Error('User not found');
+    // Return a generic response to prevent user enumeration
+    logSecurity('FORGOT_PASSWORD_NONEXISTENT_EMAIL', { email });
+    res.json({ message: 'If a matching user account exists, a reset code has been sent.' });
+    return;
   }
 
-  // Generate 6 digit OTP
+  // Generate secure 6 digit OTP
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
   const resetOtpExpiry = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
   await prisma.user.update({
-    where: { email },
+    where: { email: email.toLowerCase().trim() },
     data: { resetOtp: otp, resetOtpExpiry },
   });
 
   try {
-    // Generate test SMTP service account from ethereal.email
     const testAccount = await nodemailer.createTestAccount();
     const transporter = nodemailer.createTransport({
       host: testAccount.smtp.host,
@@ -425,16 +493,18 @@ const forgotPassword = asyncHandler(async (req, res) => {
 
     const info = await transporter.sendMail({
       from: '"Buybee Support" <support@buybee.com>',
-      to: email,
+      to: user.email,
       subject: 'Password Reset OTP',
       text: `Your OTP for password reset is: ${otp}. It will expire in 10 minutes.`,
     });
 
     console.log('Preview URL: %s', nodemailer.getTestMessageUrl(info));
-    console.log(`[DEVELOPMENT] OTP for ${email} is: ${otp}`);
+    console.log(`[DEVELOPMENT] OTP for ${user.email} is: ${otp}`);
     
+    logSecurity('FORGOT_PASSWORD_OTP_SENT', { userId: user.id });
     res.json({ message: 'OTP sent to email' });
   } catch (error) {
+    logError('Failed to send forgot password email', error);
     res.status(500);
     throw new Error('Email could not be sent');
   }
@@ -445,14 +515,16 @@ const forgotPassword = asyncHandler(async (req, res) => {
 // @access  Public
 const verifyOtp = asyncHandler(async (req, res) => {
   const { email, otp } = req.body;
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
 
   if (!user || user.resetOtp !== otp) {
+    logSecurity('INVALID_OTP_VERIFICATION_ATTEMPT', { email });
     res.status(400);
     throw new Error('Invalid OTP');
   }
 
   if (user.resetOtpExpiry < new Date()) {
+    logSecurity('EXPIRED_OTP_VERIFICATION_ATTEMPT', { email });
     res.status(400);
     throw new Error('OTP expired');
   }
@@ -465,29 +537,38 @@ const verifyOtp = asyncHandler(async (req, res) => {
 // @access  Public
 const resetPassword = asyncHandler(async (req, res) => {
   const { email, otp, newPassword } = req.body;
-  const user = await prisma.user.findUnique({ where: { email } });
+  const user = await prisma.user.findUnique({ where: { email: email.toLowerCase().trim() } });
 
   if (!user || user.resetOtp !== otp) {
+    logSecurity('INVALID_PASSWORD_RESET_ATTEMPT', { email });
     res.status(400);
     throw new Error('Invalid OTP');
   }
 
   if (user.resetOtpExpiry < new Date()) {
+    logSecurity('EXPIRED_PASSWORD_RESET_ATTEMPT', { email });
     res.status(400);
     throw new Error('OTP expired');
   }
 
-  const salt = await bcrypt.genSalt(10);
+  if (!newPassword || newPassword.length < 8) {
+    res.status(400);
+    throw new Error('Password must be at least 8 characters');
+  }
+
+  const salt = await bcrypt.genSalt(12);
   const hashedPassword = await bcrypt.hash(newPassword, salt);
 
   await prisma.user.update({
-    where: { email },
+    where: { email: email.toLowerCase().trim() },
     data: {
       password: hashedPassword,
       resetOtp: null,
       resetOtpExpiry: null,
     },
   });
+
+  logSecurity('PASSWORD_RESET_SUCCESS', { userId: user.id });
 
   res.json({ message: 'Password reset successful' });
 });

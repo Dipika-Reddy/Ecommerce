@@ -5,7 +5,7 @@ import { toast } from 'react-toastify';
 import { Eye, EyeOff } from 'lucide-react';
 import { useLoginMutation, useForgotPasswordMutation, useVerifyOtpMutation, useResetPasswordMutation } from '../features/api/usersApiSlice';
 import { setCredentials } from '../features/auth/authSlice';
-import { isApprovedSeller, isPlatformAdmin, isSuperAdminUser, isSellerUser } from '../utils/userRoles';
+import { isApprovedSeller, isPlatformAdmin, isSuperAdminUser, isSellerUser, isSupportUser } from '../utils/userRoles';
 import Loader from '../components/Loader';
 
 const LoginScreen = () => {
@@ -52,6 +52,10 @@ const LoginScreen = () => {
       }
       if (isSellerUser(res)) {
         toast.error('Please use the seller portal to sign in.');
+        return;
+      }
+      if (isSupportUser(res)) {
+        toast.error('Please use the support portal to sign in.');
         return;
       }
 

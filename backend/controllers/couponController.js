@@ -1,5 +1,6 @@
 import asyncHandler from 'express-async-handler';
 import { prisma } from '../config/db.js';
+import { logSecurity } from '../utils/logger.js';
 
 // @desc    Get all active coupons
 // @route   GET /api/coupons
@@ -50,9 +51,11 @@ const createCoupon = asyncHandler(async (req, res) => {
       discountType,
       discountValue: Number(discountValue),
       minPurchase: minPurchase ? Number(minPurchase) : 0.0,
-      description,
+      description: description ? description.trim() : null,
     },
   });
+
+  logSecurity('COUPON_CREATED', { adminId: req.user.id, code: normalizedCode, value: discountValue });
 
   res.status(201).json(coupon);
 });
@@ -69,6 +72,8 @@ const deleteCoupon = asyncHandler(async (req, res) => {
     await prisma.coupon.delete({
       where: { id: req.params.id },
     });
+    
+    logSecurity('COUPON_DELETED', { adminId: req.user.id, code: coupon.code });
     res.json({ message: 'Coupon removed successfully' });
   } else {
     res.status(404);

@@ -75,6 +75,7 @@ const DeliveryPaymentsScreen = () => {
                     <tr>
                       <th className="px-4 py-3">Order ID</th>
                       <th className="px-4 py-3">Customer & Address</th>
+                      <th className="px-4 py-3">Type</th>
                       <th className="px-4 py-3">Total Amount</th>
                       <th className="px-4 py-3">Amount Collected (₹)</th>
                       <th className="px-4 py-3">Payment Method</th>
@@ -95,6 +96,15 @@ const DeliveryPaymentsScreen = () => {
                               {order.shippingAddress.address}, {order.shippingAddress.city}
                             </div>
                           )}
+                        </td>
+                        <td className="px-4 py-3 align-top">
+                           <span className={`text-xs px-2 py-1 rounded-full font-bold inline-block ${
+                             order.paymentMethod === 'Cash on Delivery' || order.paymentMethod?.toLowerCase().includes('delivery')
+                               ? 'bg-amber-100 text-amber-700'
+                               : 'bg-blue-100 text-blue-700'
+                           }`}>
+                             {order.paymentMethod === 'Cash on Delivery' || order.paymentMethod?.toLowerCase().includes('delivery') ? 'Paid on Delivery' : 'Prepaid'}
+                           </span>
                         </td>
                         <td className="px-4 py-3 align-top font-bold text-gray-900">
                           ₹{order.totalPrice.toFixed(2)}
@@ -146,6 +156,7 @@ const DeliveryPaymentsScreen = () => {
                     <tr>
                       <th className="px-4 py-3">Order ID</th>
                       <th className="px-4 py-3">Customer</th>
+                      <th className="px-4 py-3">Payment Type</th>
                       <th className="px-4 py-3">Total Paid</th>
                       <th className="px-4 py-3">Date Paid</th>
                     </tr>
@@ -156,6 +167,15 @@ const DeliveryPaymentsScreen = () => {
                         <td className="px-4 py-3 font-mono text-xs text-gray-600">{order._id.slice(-8)}</td>
                         <td className="px-4 py-3">
                           <div className="font-semibold text-gray-700">{order.user?.name || 'Deleted user'}</div>
+                        </td>
+                        <td className="px-4 py-3">
+                           <span className={`text-xs px-2 py-1 rounded-full font-bold inline-block ${
+                             order.paymentMethod === 'Cash on Delivery' || order.paymentMethod?.toLowerCase().includes('delivery')
+                               ? 'bg-amber-100 text-amber-700'
+                               : 'bg-blue-100 text-blue-700'
+                           }`}>
+                             {order.paymentMethod === 'Cash on Delivery' || order.paymentMethod?.toLowerCase().includes('delivery') ? 'Paid on Delivery' : 'Prepaid'}
+                           </span>
                         </td>
                         <td className="px-4 py-3 font-bold text-green-600">
                           ₹{order.totalPrice.toFixed(2)}

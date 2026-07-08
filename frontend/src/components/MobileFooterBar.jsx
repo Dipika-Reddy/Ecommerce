@@ -221,7 +221,7 @@ const MobileFooterBar = () => {
                   onClick={() => setProfileOpen(false)}
                   className="flex items-center gap-3 w-full px-4 py-3 rounded-xl hover:bg-slate-50 transition text-sm font-semibold text-slate-700"
                 >
-                  Verify Sellers
+                  Verify Users
                 </Link>
                 <Link
                   to="/seller/productlist"

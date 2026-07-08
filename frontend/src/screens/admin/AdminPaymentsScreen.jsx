@@ -196,14 +196,14 @@ const AdminPaymentsScreen = () => {
               {filteredPayments.map((pay) => (
                 <tr key={pay.id} className="hover:bg-slate-50/50 transition">
                   <td className="px-5 py-4">
-                    <p className="font-semibold text-slate-800 text-sm leading-snug">{pay.user?.name || 'Guest'}</p>
-                    <p className="text-xs text-slate-400">{pay.user?.email || 'N/A'}</p>
+                    <p className="font-semibold text-slate-800 text-sm leading-snug whitespace-nowrap">{pay.user?.name || 'Guest'}</p>
+                    <p className="text-xs text-slate-400 whitespace-nowrap">{pay.user?.email || 'N/A'}</p>
                   </td>
                   <td className="px-5 py-4">
                     {pay.sellerNames && pay.sellerNames.length > 0 ? (
                       <div className="flex flex-wrap gap-1">
                         {pay.sellerNames.map((name) => (
-                          <span key={name} className="inline-flex items-center bg-slate-100 border border-slate-200 text-slate-700 text-[10px] font-semibold px-2 py-0.5 rounded shadow-sm">
+                          <span key={name} className="inline-flex items-center bg-slate-100 border border-slate-200 text-slate-700 text-[10px] font-semibold px-2 py-0.5 rounded shadow-sm whitespace-nowrap">
                             {name}
                           </span>
                         ))}
@@ -213,7 +213,7 @@ const AdminPaymentsScreen = () => {
                     )}
                   </td>
                   <td className="px-5 py-4">
-                    <Link to={`/order/${pay.orderId}`} className="text-brand-650 font-semibold hover:underline text-xs bg-brand-50 border border-brand-100 px-2 py-1 rounded">
+                    <Link to={`/order/${pay.orderId}`} className="text-brand-650 font-semibold hover:underline text-xs bg-brand-50 border border-brand-100 px-2 py-1 rounded whitespace-nowrap">
                       Order Details
                     </Link>
                   </td>
@@ -221,8 +221,8 @@ const AdminPaymentsScreen = () => {
                     ₹{pay.amount.toFixed(2)}
                   </td>
                   <td className="px-5 py-4">
-                    <p className="font-semibold text-slate-700 text-xs">{pay.paymentMethod}</p>
-                    <p className="text-[10px] text-slate-400 font-mono tracking-tighter uppercase">{pay.gateway}</p>
+                    <p className="font-semibold text-slate-700 text-xs whitespace-nowrap">{pay.paymentMethod}</p>
+                    <p className="text-[10px] text-slate-400 font-mono tracking-tighter uppercase whitespace-nowrap">{pay.gateway}</p>
                   </td>
                   <td className="px-5 py-4">
                     <span className={`inline-flex items-center border px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${statusBadgeColor[pay.paymentStatus] || 'bg-slate-100 text-slate-600'}`}>

@@ -9,7 +9,7 @@ import Loader from '../components/Loader';
 import Message from '../components/Message';
 import { Shield, Sparkles, Check, ToggleLeft, ToggleRight, Trash2, Heart } from 'lucide-react';
 import { removeFromWishlist } from '../features/wishlist/wishlistSlice';
-import { isApprovedSeller, isPlatformAdmin, isSuperAdminUser, isDeliveryAgent } from '../utils/userRoles';
+import { isApprovedSeller, isPlatformAdmin, isSuperAdminUser, isDeliveryAgent, isSupportUser } from '../utils/userRoles';
 import CallSimulationModal from '../components/CallSimulationModal';
 
 const statusColor = {
@@ -24,7 +24,7 @@ const ProfileScreen = () => {
   const { userInfo } = useSelector((state) => state.auth);
   const { wishlistItems } = useSelector((state) => state.wishlist);
   const dispatch = useDispatch();
-  const isManagement = userInfo && (isApprovedSeller(userInfo) || isPlatformAdmin(userInfo) || isSuperAdminUser(userInfo) || isDeliveryAgent(userInfo));
+  const isManagement = userInfo && (isApprovedSeller(userInfo) || isPlatformAdmin(userInfo) || isSuperAdminUser(userInfo) || isDeliveryAgent(userInfo) || isSupportUser(userInfo));
 
   const [name, setName] = useState(userInfo.name);
   const [email, setEmail] = useState(userInfo.email);

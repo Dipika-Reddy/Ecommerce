@@ -1,6 +1,7 @@
 import asyncHandler from 'express-async-handler';
 import { prisma } from '../config/db.js';
 import { isSellerUser } from '../utils/userRoles.js';
+import { logSecurity } from '../utils/logger.js';
 
 // Helper to format Prisma Order models to match the MongoDB schema layout
 const formatOrder = (order) => {
@@ -160,6 +161,8 @@ const addOrderItems = asyncHandler(async (req, res) => {
     });
   }
 
+  logSecurity('ORDER_PLACED', { orderId: createdOrder.id, userId: req.user.id, totalAmount: totalPrice });
+
   res.status(201).json(formatOrder(createdOrder));
 });
 
@@ -211,6 +214,7 @@ const getOrderById = asyncHandler(async (req, res) => {
   const isCustomer = order.userId === req.user.id;
   const isSuperAdmin = req.user.isSuperAdmin;
   const isAdmin = req.user.isAdmin;
+  const isSupport = req.user.isSupport;
   
   // Find items in this order that belong to this seller/admin
   const sellerItems = order.orderItems.filter(
@@ -220,8 +224,9 @@ const getOrderById = asyncHandler(async (req, res) => {
   
   const isAssignedAgent = order.deliveryAgentId === req.user.id;
 
-  // Customers, Super Admins, Admins, Sellers who own an item, and the assigned agent can view.
-  if (!isCustomer && !isSuperAdmin && !isAdmin && !isSeller && !isAssignedAgent) {
+  // Customers, Super Admins, Admins, Sellers who own an item, assigned agent, and support can view.
+  if (!isCustomer && !isSuperAdmin && !isAdmin && !isSeller && !isAssignedAgent && !isSupport) {
+    logSecurity('UNAUTHORIZED_ORDER_VIEW_ATTEMPT', { userId: req.user.id, orderId: order.id });
     res.status(403);
     throw new Error('Not authorized to view this order');
   }
@@ -256,6 +261,18 @@ const updateOrderToPaid = asyncHandler(async (req, res) => {
   if (!order) {
     res.status(404);
     throw new Error('Order not found');
+  }
+
+  // Authorization Check: Only customer themselves, delivery agent assigned, admin, or super admin can trigger this
+  const isCustomer = order.userId === req.user.id;
+  const isSuperAdmin = req.user.isSuperAdmin;
+  const isAdmin = req.user.isAdmin;
+  const isAssignedAgent = order.deliveryAgentId === req.user.id;
+
+  if (!isCustomer && !isSuperAdmin && !isAdmin && !isAssignedAgent) {
+    logSecurity('UNAUTHORIZED_ORDER_PAYMENT_UPDATE_ATTEMPT', { userId: req.user.id, orderId: order.id });
+    res.status(403);
+    throw new Error('Not authorized to update payment status for this order');
   }
 
   const paymentMethod = req.body.method || order.paymentMethod;
@@ -311,6 +328,8 @@ const updateOrderToPaid = asyncHandler(async (req, res) => {
     });
   }
 
+  logSecurity('ORDER_MARKED_AS_PAID', { orderId: order.id, userId: req.user.id });
+
   res.json(formatOrder(updatedOrder));
 });
 
@@ -356,6 +375,7 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
   const isDeliveryAgent = req.user.isDeliveryAgent;
 
   if (!isSuperAdmin && !isAdmin && !isSeller && !isDeliveryAgent) {
+    logSecurity('UNAUTHORIZED_ORDER_STATUS_UPDATE_ATTEMPT', { userId: req.user.id, orderId: order.id });
     res.status(403);
     throw new Error('Not authorized to update this order');
   }
@@ -399,6 +419,8 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
     },
   });
 
+  logSecurity('ORDER_STATUS_UPDATED', { orderId: order.id, userId: req.user.id, status });
+
   res.json(formatOrder(updatedOrder));
 });
 
@@ -431,6 +453,7 @@ const getOrders = asyncHandler(async (req, res) => {
           id: true,
           name: true,
           phoneNumber: true,
+          email: true,
         },
       },
       deliveryAgent: {
@@ -456,10 +479,11 @@ const getOrders = asyncHandler(async (req, res) => {
 
   const isSuperAdmin = req.user.isSuperAdmin;
   const isAdmin = req.user.isAdmin;
+  const isSupport = req.user.isSupport;
   const filteredOrders = [];
 
   for (const order of orders) {
-    if (isSuperAdmin || isAdmin) {
+    if (isSuperAdmin || isAdmin || isSupport) {
       filteredOrders.push(formatOrder(order));
       continue;
     }
@@ -506,6 +530,7 @@ const requestReturn = asyncHandler(async (req, res) => {
   const order = await prisma.order.findUnique({
     where: { id: req.params.id }
   });
+
   if (order && order.userId === req.user.id) {
     if (order.status !== 'Delivered') {
       res.status(400);
@@ -521,6 +546,9 @@ const requestReturn = asyncHandler(async (req, res) => {
       },
       include: { orderItems: true, payments: true }
     });
+
+    logSecurity('RETURN_REQUESTED', { orderId: order.id, userId: req.user.id });
+
     res.json(formatOrder(updatedOrder));
   } else {
     res.status(404);
@@ -533,21 +561,45 @@ const requestReturn = asyncHandler(async (req, res) => {
 // @access  Private (Seller/Admin)
 const approveReturn = asyncHandler(async (req, res) => {
   const order = await prisma.order.findUnique({
-    where: { id: req.params.id }
+    where: { id: req.params.id },
+    include: {
+      orderItems: {
+        include: {
+          product: { select: { userId: true } }
+        }
+      }
+    }
   });
-  if (order) {
-    const updatedOrder = await prisma.order.update({
-      where: { id: req.params.id },
-      data: {
-        returnStatus: 'Approved',
-      },
-      include: { orderItems: true, payments: true }
-    });
-    res.json(formatOrder(updatedOrder));
-  } else {
+
+  if (!order) {
     res.status(404);
     throw new Error('Order not found');
   }
+
+  // Authorization Check
+  const isSuperAdmin = req.user.isSuperAdmin;
+  const isAdmin = req.user.isAdmin;
+  const isSeller = order.orderItems.some(
+    (item) => item.product && item.product.userId === req.user.id
+  );
+
+  if (!isSuperAdmin && !isAdmin && !isSeller) {
+    logSecurity('UNAUTHORIZED_RETURN_APPROVAL_ATTEMPT', { userId: req.user.id, orderId: order.id });
+    res.status(403);
+    throw new Error('Not authorized to approve returns for this order');
+  }
+
+  const updatedOrder = await prisma.order.update({
+    where: { id: req.params.id },
+    data: {
+      returnStatus: 'Approved',
+    },
+    include: { orderItems: true, payments: true }
+  });
+
+  logSecurity('RETURN_APPROVED', { orderId: order.id, approvedBy: req.user.id });
+
+  res.json(formatOrder(updatedOrder));
 });
 
 // @desc    Complete return (Delivery Agent)
@@ -557,19 +609,34 @@ const completeReturn = asyncHandler(async (req, res) => {
   const order = await prisma.order.findUnique({
     where: { id: req.params.id }
   });
-  if (order && req.user.isDeliveryAgent) {
-    const updatedOrder = await prisma.order.update({
-      where: { id: req.params.id },
-      data: {
-        returnStatus: 'Collected',
-      },
-      include: { orderItems: true, payments: true }
-    });
-    res.json(formatOrder(updatedOrder));
-  } else {
+
+  if (!order) {
     res.status(404);
-    throw new Error('Order not found or not authorized');
+    throw new Error('Order not found');
   }
+
+  // Authorization Check: Only assigned agent, admin or superadmin can complete returns
+  const isAssignedAgent = order.deliveryAgentId === req.user.id;
+  const isSuperAdmin = req.user.isSuperAdmin;
+  const isAdmin = req.user.isAdmin;
+
+  if (!isAssignedAgent && !isSuperAdmin && !isAdmin) {
+    logSecurity('UNAUTHORIZED_RETURN_COMPLETE_ATTEMPT', { userId: req.user.id, orderId: order.id });
+    res.status(403);
+    throw new Error('Not authorized to complete this return collection');
+  }
+
+  const updatedOrder = await prisma.order.update({
+    where: { id: req.params.id },
+    data: {
+      returnStatus: 'Collected',
+    },
+    include: { orderItems: true, payments: true }
+  });
+
+  logSecurity('RETURN_COLLECTED', { orderId: order.id, agentId: req.user.id });
+
+  res.json(formatOrder(updatedOrder));
 });
 
 // @desc    Process refund
@@ -577,25 +644,50 @@ const completeReturn = asyncHandler(async (req, res) => {
 // @access  Private (Seller/Admin)
 const processRefund = asyncHandler(async (req, res) => {
   const order = await prisma.order.findUnique({
-    where: { id: req.params.id }
-  });
-  if (order) {
-    if (order.returnStatus !== 'Collected') {
-      res.status(400);
-      throw new Error('Return must be collected before refunding');
+    where: { id: req.params.id },
+    include: {
+      orderItems: {
+        include: {
+          product: { select: { userId: true } }
+        }
+      }
     }
-    const updatedOrder = await prisma.order.update({
-      where: { id: req.params.id },
-      data: {
-        isRefunded: true,
-      },
-      include: { orderItems: true, payments: true }
-    });
-    res.json(formatOrder(updatedOrder));
-  } else {
+  });
+
+  if (!order) {
     res.status(404);
     throw new Error('Order not found');
   }
+
+  // Authorization Check
+  const isSuperAdmin = req.user.isSuperAdmin;
+  const isAdmin = req.user.isAdmin;
+  const isSeller = order.orderItems.some(
+    (item) => item.product && item.product.userId === req.user.id
+  );
+
+  if (!isSuperAdmin && !isAdmin && !isSeller) {
+    logSecurity('UNAUTHORIZED_REFUND_ATTEMPT', { userId: req.user.id, orderId: order.id });
+    res.status(403);
+    throw new Error('Not authorized to process refunds for this order');
+  }
+
+  if (order.returnStatus !== 'Collected') {
+    res.status(400);
+    throw new Error('Return must be collected before refunding');
+  }
+
+  const updatedOrder = await prisma.order.update({
+    where: { id: req.params.id },
+    data: {
+      isRefunded: true,
+    },
+    include: { orderItems: true, payments: true }
+  });
+
+  logSecurity('REFUND_PROCESSED', { orderId: order.id, processedBy: req.user.id });
+
+  res.json(formatOrder(updatedOrder));
 });
 
 // @desc    Assign delivery agent to order
@@ -654,6 +746,8 @@ const assignDeliveryAgent = asyncHandler(async (req, res) => {
       orderItems: { include: { product: true } }
     }
   });
+
+  logSecurity('DELIVERY_AGENT_ASSIGNED', { orderId: order.id, agentId: deliveryAgentId, assignedBy });
 
   res.json(formatOrder(updatedOrder));
 });

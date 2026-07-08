@@ -28,6 +28,8 @@ model User {
   deliveryStatus  String    @default("NONE")
   resetOtp        String?
   resetOtpExpiry  DateTime?
+  failedLoginAttempts Int       @default(0)
+  lockoutUntil        DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
   products        Product[]

@@ -22,6 +22,7 @@ import AdminLoginScreen from './screens/AdminLoginScreen';
 import SuperAdminLoginScreen from './screens/SuperAdminLoginScreen';
 import SellerLoginScreen from './screens/SellerLoginScreen';
 import DeliveryLoginScreen from './screens/DeliveryLoginScreen';
+import SupportLoginScreen from './screens/SupportLoginScreen';
 
 // Public catalog
 import HomeScreen from './screens/HomeScreen';
@@ -70,6 +71,7 @@ const App = () => {
       <Route path="/admin" element={<AdminLoginScreen />} />
       <Route path="/superadmin" element={<SuperAdminLoginScreen />} />
       <Route path="/delivery" element={<DeliveryLoginScreen />} />
+      <Route path="/support" element={<SupportLoginScreen />} />
 
       {/* Standard layout routes */}
       <Route path="/home" element={
@@ -150,6 +152,8 @@ const App = () => {
       {/* Support Team dashboard */}
       <Route element={<SupportRoute />}>
         <Route path="/support/orders" element={<StandardLayout><OrderListScreen /></StandardLayout>} />
+        <Route path="/support/userlist" element={<StandardLayout><UserListScreen /></StandardLayout>} />
+        <Route path="/support/verifysellers" element={<StandardLayout><VerifySellersScreen /></StandardLayout>} />
       </Route>
     </Routes>
     <SupportCallPanel />

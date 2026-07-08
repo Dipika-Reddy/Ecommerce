@@ -44,7 +44,7 @@ const loadRazorpayScript = () => {
 const OrderScreen = () => {
   const { id: orderId } = useParams();
   const { userInfo } = useSelector((state) => state.auth);
-  const canManageOrder = isSellerUser(userInfo) || isSuperAdminUser(userInfo) || userInfo?.isAdmin;
+  const canManageOrder = isSellerUser(userInfo) || isSuperAdminUser(userInfo) || userInfo?.isAdmin || isSupportUser(userInfo);
 
   const { data: order, isLoading, error, refetch } = useGetOrderDetailsQuery(orderId);
   const [createPaymentOrder, { isLoading: loadingCreatePayment }] = useCreatePaymentOrderMutation();

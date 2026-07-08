@@ -90,7 +90,7 @@ const Header = () => {
       <div className="bg-white/95 backdrop-blur-md text-slate-800">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 sm:gap-4 px-3 sm:px-4 py-2.5 sm:py-3 min-w-0">
           {/* Logo */}
-          <Link to="/home" className="flex items-center gap-1.5 sm:gap-2 px-1 sm:px-2 py-1 rounded border border-transparent hover:bg-slate-50 transition-colors duration-150 shrink-0 min-w-0">
+          <Link to={isSupport ? "/support/orders" : "/home"} className="flex items-center gap-1.5 sm:gap-2 px-1 sm:px-2 py-1 rounded border border-transparent hover:bg-slate-50 transition-colors duration-150 shrink-0 min-w-0">
             <svg viewBox="0 0 100 100" className="w-8 h-8 hover:scale-105 transition-transform" fill="none" xmlns="http://www.w3.org/2000/svg">
               {/* Wings */}
               <ellipse cx="38" cy="35" rx="14" ry="24" fill="#e0f2fe" stroke="#0284c7" strokeWidth="4" transform="rotate(-30 38 35)"/>
@@ -109,8 +109,8 @@ const Header = () => {
             </span>
           </Link>
 
-          {/* Integrated Search Bar (Desktop only) - Hidden for Delivery Agents */}
-          {!isDelivery && (
+          {/* Integrated Search Bar (Desktop only) - Hidden for Delivery Agents & Support */}
+          {!isDelivery && !isSupport && (
             <form 
               onSubmit={handleSearchSubmit} 
               className="hidden md:flex flex-1 items-center bg-white rounded-xl border border-slate-200 overflow-hidden focus-within:ring-2 focus-within:ring-brand-500 focus-within:border-brand-500 shadow-sm max-w-2xl"
@@ -322,7 +322,7 @@ const Header = () => {
                         className="block px-4 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
                         onClick={() => setDropdownOpen(false)}
                       >
-                        Verify Sellers
+                        Verify Users
                       </Link>
                       <Link
                         to={`${getStaffBasePath(userInfo)}/couponlist`}
@@ -373,7 +373,7 @@ const Header = () => {
       </div>
 
       {/* ── Mobile Search Bar (below logo row, hidden on desktop) ── */}
-      {!isDelivery && (
+      {!isDelivery && !isSupport && (
         <div className="md:hidden bg-white border-t border-slate-100 px-3 py-2.5">
           <form
             onSubmit={handleSearchSubmit}
@@ -424,7 +424,7 @@ const Header = () => {
       )}
 
       {/* --- Sub-navbar (Light Grey/Blue Subbar) - hidden on mobile --- */}
-      {!isDelivery && (
+      {!isDelivery && !isSupport && (
         <div className="hidden md:block bg-slate-50 border-t border-slate-200/60 text-slate-600 py-1.5">
           <div className="mx-auto flex max-w-7xl items-center gap-1 px-4 text-xs font-semibold overflow-x-auto scrollbar-none">
             {/* Home button */}

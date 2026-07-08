@@ -7,6 +7,7 @@ import {
   validateCoupon,
 } from '../controllers/couponController.js';
 import { protect, admin } from '../middleware/authMiddleware.js';
+import { validateCoupon as validateCouponInput, validateIdParam } from '../middleware/validationMiddleware.js';
 
 const router = express.Router();
 
@@ -16,7 +17,10 @@ router.route('/validate').post(protect, validateCoupon);
 
 // Admin/SuperAdmin routes
 router.route('/admin').get(protect, admin, adminGetCoupons);
-router.route('/').post(protect, admin, createCoupon);
-router.route('/:id').delete(protect, admin, deleteCoupon);
+router.route('/')
+  .post(protect, admin, validateCouponInput, createCoupon);
+
+router.route('/:id')
+  .delete(protect, admin, validateIdParam('id'), deleteCoupon);
 
 export default router;

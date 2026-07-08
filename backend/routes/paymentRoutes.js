@@ -11,14 +11,20 @@ import {
   verifySubscription,
 } from '../controllers/paymentController.js';
 import { protect, seller } from '../middleware/authMiddleware.js';
+import { paymentLimiter } from '../middleware/securityMiddleware.js';
+import { validateIdParam } from '../middleware/validationMiddleware.js';
 
-router.route('/').get(protect, seller, getAllPayments);
-router.post('/create-order', protect, createOrder);
-router.post('/verify', protect, verifyPayment);
+router.route('/')
+  .get(protect, seller, getAllPayments);
+
+router.post('/create-order', protect, paymentLimiter, createOrder);
+router.post('/verify', protect, paymentLimiter, verifyPayment);
 router.post('/webhook', handleWebhook);
-router.post('/refund', protect, seller, refundPayment);
-router.post('/create-subscription-order', protect, createSubscriptionOrder);
-router.post('/verify-subscription', protect, verifySubscription);
-router.route('/:paymentId').get(protect, getPaymentStatus);
+router.post('/refund', protect, seller, paymentLimiter, refundPayment);
+router.post('/create-subscription-order', protect, paymentLimiter, createSubscriptionOrder);
+router.post('/verify-subscription', protect, paymentLimiter, verifySubscription);
+
+router.route('/:paymentId')
+  .get(protect, validateIdParam('paymentId'), getPaymentStatus);
 
 export default router;

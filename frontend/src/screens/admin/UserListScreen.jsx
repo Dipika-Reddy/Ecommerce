@@ -12,7 +12,11 @@ const UserListScreen = () => {
 
   const { userInfo } = useSelector((state) => state.auth);
   const location = useLocation();
-  const staffBasePath = location.pathname.startsWith('/superadmin') ? '/superadmin' : '/admin';
+  const staffBasePath = location.pathname.startsWith('/superadmin') 
+    ? '/superadmin' 
+    : location.pathname.startsWith('/support') 
+      ? '/support' 
+      : '/admin';
 
   const deleteHandler = async (id) => {
     if (window.confirm('Delete this user account?')) {

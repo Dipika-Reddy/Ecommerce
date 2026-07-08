@@ -6,6 +6,7 @@ import cors from 'cors';
 
 import connectDB from './config/db.js';
 import { notFound, errorHandler } from './middleware/errorMiddleware.js';
+import { helmetConfig, generalLimiter } from './middleware/securityMiddleware.js';
 
 import userRoutes from './routes/userRoutes.js';
 import productRoutes from './routes/productRoutes.js';
@@ -16,18 +17,53 @@ import couponRoutes from './routes/couponRoutes.js';
 
 dotenv.config();
 
+// Fail-fast environment variable validation
+const requiredEnvVars = ['JWT_SECRET', 'DATABASE_URL'];
+for (const envVar of requiredEnvVars) {
+  if (!process.env[envVar]) {
+    console.error(`[CRITICAL] Missing required environment variable: ${envVar}`);
+    process.exit(1);
+  }
+}
+
 connectDB();
 
 const app = express();
 
+// Disable x-powered-by to prevent fingerprinting
+app.disable('x-powered-by');
+
+// Apply Helmet security headers
+app.use(helmetConfig);
+
+// Setup trusted origins and credentials for CORS
+const allowedOrigin = process.env.CLIENT_URL || 'http://localhost:5173';
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl, or same origin static resources)
+      if (!origin || origin === allowedOrigin) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+    credentials: true,
+  })
+);
+
+// Body parsing with size limitations to prevent DoS/oversized payloads
+app.use(express.json({ limit: '50kb' })); 
+app.use(express.urlencoded({ extended: true, limit: '50kb' }));
+
+// Apply rate limiting to all requests
+app.use(generalLimiter);
+
 // __dirname equivalent for ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-// --- Core middleware ---
-app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173', credentials: true }));
-app.use(express.json()); // parse JSON bodies
-app.use(express.urlencoded({ extended: true })); // parse form bodies
 
 // --- Health check ---
 app.get('/api/health', (req, res) => res.json({ status: 'ok', timestamp: new Date() }));
