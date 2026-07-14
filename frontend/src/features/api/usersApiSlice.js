@@ -40,6 +40,12 @@ export const usersApiSlice = apiSlice.injectEndpoints({
       keepUnusedDataFor: 5,
     }),
 
+    getDeliveryAgents: builder.query({
+      query: () => `${USERS_URL}/delivery-agents`,
+      providesTags: ['User'],
+      keepUnusedDataFor: 5,
+    }),
+
     deleteUser: builder.mutation({
       query: (userId) => ({
         url: `${USERS_URL}/${userId}`,
@@ -65,6 +71,39 @@ export const usersApiSlice = apiSlice.injectEndpoints({
       }),
       invalidatesTags: ['User'],
     }),
+
+    verifyDelivery: builder.mutation({
+      query: ({ userId, approve }) => ({
+        url: `${USERS_URL}/${userId}/verify-delivery`,
+        method: 'PUT',
+        body: { approve },
+      }),
+      invalidatesTags: ['User'],
+    }),
+
+    forgotPassword: builder.mutation({
+      query: (data) => ({
+        url: `${USERS_URL}/forgot-password`,
+        method: 'POST',
+        body: data,
+      }),
+    }),
+
+    verifyOtp: builder.mutation({
+      query: (data) => ({
+        url: `${USERS_URL}/verify-otp`,
+        method: 'POST',
+        body: data,
+      }),
+    }),
+
+    resetPassword: builder.mutation({
+      query: (data) => ({
+        url: `${USERS_URL}/reset-password`,
+        method: 'POST',
+        body: data,
+      }),
+    }),
   }),
 });
 
@@ -77,4 +116,9 @@ export const {
   useDeleteUserMutation,
   useUpdateUserMutation,
   useVerifySellerMutation,
+  useVerifyDeliveryMutation,
+  useForgotPasswordMutation,
+  useVerifyOtpMutation,
+  useResetPasswordMutation,
+  useGetDeliveryAgentsQuery,
 } = usersApiSlice;

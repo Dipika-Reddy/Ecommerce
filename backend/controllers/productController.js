@@ -1,6 +1,8 @@
 import asyncHandler from 'express-async-handler';
 import { prisma } from '../config/db.js';
 import { canManageCatalog } from '../utils/userRoles.js';
+import { sanitizeString } from '../middleware/validationMiddleware.js';
+import { logSecurity } from '../utils/logger.js';
 
 const PAGE_SIZE = 12;
 
@@ -11,9 +13,17 @@ const getProducts = asyncHandler(async (req, res) => {
   const pageSize = Number(req.query.pageSize) || PAGE_SIZE;
   const page = Number(req.query.pageNumber) || 1;
 
+  if (pageSize <= 0 || pageSize > 100) {
+    res.status(400);
+    throw new Error('Invalid page size');
+  }
+  if (page <= 0) {
+    res.status(400);
+    throw new Error('Invalid page number');
+  }
+
   const where = {};
 
-  // If in admin Mode, require catalog management access
   if (req.query.adminMode === 'true') {
     if (!req.user || !canManageCatalog(req.user)) {
       res.status(403);
@@ -22,10 +32,12 @@ const getProducts = asyncHandler(async (req, res) => {
   }
 
   if (req.query.keyword) {
+    // Sanitize search keyword to prevent injection
+    const cleanKeyword = req.query.keyword.trim();
     where.OR = [
-      { name: { contains: req.query.keyword, mode: 'insensitive' } },
-      { brand: { contains: req.query.keyword, mode: 'insensitive' } },
-      { description: { contains: req.query.keyword, mode: 'insensitive' } },
+      { name: { contains: cleanKeyword, mode: 'insensitive' } },
+      { brand: { contains: cleanKeyword, mode: 'insensitive' } },
+      { description: { contains: cleanKeyword, mode: 'insensitive' } },
     ];
   }
 
@@ -68,10 +80,13 @@ const getProducts = asyncHandler(async (req, res) => {
           },
         },
       },
-    }),
-  ]);
+    },
+  });
 
-  // Map database ids to _id format for frontend compatibility
+  const count = allProducts.length;
+  const startIndex = pageSize * (page - 1);
+  const products = allProducts.slice(startIndex, startIndex + pageSize);
+
   const formattedProducts = products.map((product) => ({
     ...product,
     _id: product.id,
@@ -152,22 +167,41 @@ const createProduct = asyncHandler(async (req, res) => {
     throw new Error('Please fill in all required product fields');
   }
 
+  const numPrice = Number(price);
+  const numStock = Number(countInStock);
+
+  if (isNaN(numPrice) || numPrice < 0) {
+    res.status(400);
+    throw new Error('Product price cannot be negative');
+  }
+  if (isNaN(numStock) || numStock < 0) {
+    res.status(400);
+    throw new Error('Inventory count cannot be negative');
+  }
+
+  // Validate images array to ensure only strings (avoid XSS / malformed URLs)
+  const cleanImages = (images && Array.isArray(images)) 
+    ? images.map(img => typeof img === 'string' ? img.replace(/[<>'"&]/g, '') : '').filter(Boolean)
+    : [];
+
   const createdProduct = await prisma.product.create({
     data: {
-      name,
-      price: price ? Number(price) : 0,
+      name: name.trim(),
+      price: numPrice,
       userId: req.user.id,
-      images: images && images.length ? images : [],
-      brand,
-      category,
-      subCategory: subCategory || null,
-      countInStock: countInStock ? Number(countInStock) : 0,
+      images: cleanImages,
+      brand: brand.trim(),
+      category: category.trim(),
+      subCategory: subCategory ? subCategory.trim() : null,
+      countInStock: numStock,
       numReviews: 0,
-      description,
+      description: description.trim(),
       sizes: sizes || [],
       colors: colors || [],
     },
   });
+
+  logSecurity('PRODUCT_CREATED', { productId: createdProduct.id, userId: req.user.id });
 
   res.status(201).json({
     ...createdProduct,
@@ -194,25 +228,47 @@ const updateProduct = asyncHandler(async (req, res) => {
 
   // Check ownership or admin/superadmin role
   if (!req.user.isAdmin && !req.user.isSuperAdmin && product.userId !== req.user.id) {
+    logSecurity('UNAUTHORIZED_PRODUCT_UPDATE_ATTEMPT', { userId: req.user.id, productId: product.id });
     res.status(403);
     throw new Error('Not authorized to manage this product. You can only edit your own products.');
   }
 
+  const updateData = {};
+  if (name !== undefined) updateData.name = name.trim();
+  if (price !== undefined) {
+    const numPrice = Number(price);
+    if (isNaN(numPrice) || numPrice < 0) {
+      res.status(400);
+      throw new Error('Product price cannot be negative');
+    }
+    updateData.price = numPrice;
+  }
+  if (countInStock !== undefined) {
+    const numStock = Number(countInStock);
+    if (isNaN(numStock) || numStock < 0) {
+      res.status(400);
+      throw new Error('Inventory count cannot be negative');
+    }
+    updateData.countInStock = numStock;
+  }
+  if (images !== undefined) {
+    updateData.images = Array.isArray(images)
+      ? images.map(img => typeof img === 'string' ? img.replace(/[<>'"&]/g, '') : '').filter(Boolean)
+      : [];
+  }
+  if (brand !== undefined) updateData.brand = brand.trim();
+  if (category !== undefined) updateData.category = category.trim();
+  if (subCategory !== undefined) updateData.subCategory = subCategory ? subCategory.trim() : null;
+  if (description !== undefined) updateData.description = description.trim();
+  if (sizes !== undefined) updateData.sizes = sizes;
+  if (colors !== undefined) updateData.colors = colors;
+
   const updatedProduct = await prisma.product.update({
     where: { id: req.params.id },
-    data: {
-      name: name ?? product.name,
-      price: price !== undefined ? Number(price) : product.price,
-      images: images && images.length ? images : product.images,
-      brand: brand ?? product.brand,
-      category: category ?? product.category,
-      subCategory: subCategory !== undefined ? subCategory : product.subCategory,
-      countInStock: countInStock !== undefined ? Number(countInStock) : product.countInStock,
-      description: description ?? product.description,
-      sizes: sizes ?? product.sizes,
-      colors: colors ?? product.colors,
-    },
+    data: updateData,
   });
+
+  logSecurity('PRODUCT_UPDATED', { productId: updatedProduct.id, userId: req.user.id });
 
   res.json({
     ...updatedProduct,
@@ -236,6 +292,7 @@ const deleteProduct = asyncHandler(async (req, res) => {
 
   // Check ownership or admin/superadmin role
   if (!req.user.isAdmin && !req.user.isSuperAdmin && product.userId !== req.user.id) {
+    logSecurity('UNAUTHORIZED_PRODUCT_DELETE_ATTEMPT', { userId: req.user.id, productId: product.id });
     res.status(403);
     throw new Error('Not authorized to manage this product. You can only delete your own products.');
   }
@@ -244,6 +301,8 @@ const deleteProduct = asyncHandler(async (req, res) => {
     where: { id: req.params.id },
   });
 
+  logSecurity('PRODUCT_DELETED', { productId: product.id, userId: req.user.id });
+
   res.json({ message: 'Product removed' });
 });
 
@@ -251,7 +310,7 @@ const deleteProduct = asyncHandler(async (req, res) => {
 // @route   POST /api/products/:id/reviews
 // @access  Private
 const createProductReview = asyncHandler(async (req, res) => {
-  const { rating, comment } = req.body;
+  const { rating, comment, image } = req.body;
 
   const product = await prisma.product.findUnique({
     where: { id: req.params.id },
@@ -260,6 +319,12 @@ const createProductReview = asyncHandler(async (req, res) => {
   if (!product) {
     res.status(404);
     throw new Error('Product not found');
+  }
+
+  const numRating = Number(rating);
+  if (isNaN(numRating) || numRating < 1 || numRating > 5) {
+    res.status(400);
+    throw new Error('Rating must be between 1 and 5');
   }
 
   const alreadyReviewed = await prisma.review.findFirst({
@@ -274,11 +339,16 @@ const createProductReview = asyncHandler(async (req, res) => {
     throw new Error('You have already reviewed this product');
   }
 
+  // Sanitize review comment to prevent Stored XSS
+  const sanitizedComment = sanitizeString(comment || '');
+  const cleanImage = image ? image.replace(/[<>'"&]/g, '') : null;
+
   await prisma.review.create({
     data: {
       name: req.user.name,
-      rating: Number(rating),
-      comment,
+      rating: numRating,
+      comment: sanitizedComment,
+      image: cleanImage,
       userId: req.user.id,
       productId: req.params.id,
     },
@@ -301,6 +371,8 @@ const createProductReview = asyncHandler(async (req, res) => {
     },
   });
 
+  logSecurity('REVIEW_ADDED', { productId: req.params.id, userId: req.user.id });
+
   res.status(201).json({ message: 'Review added' });
 });
 
@@ -316,13 +388,22 @@ const getTopProducts = asyncHandler(async (req, res) => {
     take: 5,
   });
 
-  const formattedProducts = products.map((product) => ({
-    ...product,
-    _id: product.id,
-    user: product.userId,
-  }));
+  const distinctProducts = [];
+  const seenNames = new Set();
+  
+  for (const product of products) {
+    if (!seenNames.has(product.name)) {
+      seenNames.add(product.name);
+      distinctProducts.push({
+        ...product,
+        _id: product.id,
+        user: product.userId,
+      });
+      if (distinctProducts.length === 5) break;
+    }
+  }
 
-  res.json(formattedProducts);
+  res.json(distinctProducts);
 });
 
 export {

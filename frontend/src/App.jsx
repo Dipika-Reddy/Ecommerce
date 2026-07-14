@@ -9,6 +9,9 @@ import PrivateRoute from './components/PrivateRoute';
 import AdminRoute from './components/AdminRoute';
 import SuperAdminRoute from './components/SuperAdminRoute';
 import SellerRoute from './components/SellerRoute';
+import DeliveryRoute from './components/DeliveryRoute';
+import SupportRoute from './components/SupportRoute';
+import SupportCallPanel from './components/SupportCallPanel';
 
 // Landing & auth (bare layout — no shared Header/Footer)
 import LandingScreen from './screens/LandingScreen';
@@ -18,11 +21,14 @@ import RegisterScreen from './screens/RegisterScreen';
 import AdminLoginScreen from './screens/AdminLoginScreen';
 import SuperAdminLoginScreen from './screens/SuperAdminLoginScreen';
 import SellerLoginScreen from './screens/SellerLoginScreen';
+import DeliveryLoginScreen from './screens/DeliveryLoginScreen';
+import SupportLoginScreen from './screens/SupportLoginScreen';
 
 // Public catalog
 import HomeScreen from './screens/HomeScreen';
 import ProductScreen from './screens/ProductScreen';
 import CartScreen from './screens/CartScreen';
+import WishlistScreen from './screens/WishlistScreen';
 
 // Checkout + account (protected)
 import ShippingScreen from './screens/ShippingScreen';
@@ -36,10 +42,12 @@ import ProductListScreen from './screens/admin/ProductListScreen';
 import ProductEditScreen from './screens/admin/ProductEditScreen';
 import OrderListScreen from './screens/admin/OrderListScreen';
 import AdminPaymentsScreen from './screens/admin/AdminPaymentsScreen';
+import DeliveryPaymentsScreen from './screens/admin/DeliveryPaymentsScreen';
 
 // Platform admin screens (shared UI for admin + superadmin)
 import UserListScreen from './screens/admin/UserListScreen';
 import VerifySellersScreen from './screens/admin/VerifySellersScreen';
+import CouponListScreen from './screens/admin/CouponListScreen';
 
 const StandardLayout = ({ children }) => (
   <div className="flex min-h-screen flex-col">
@@ -54,26 +62,34 @@ const App = () => {
   const { userInfo } = useSelector((state) => state.auth);
 
   return (
-    <Routes>
-      {/* Bare-layout routes */}
-      <Route path="/" element={<LandingScreen />} />
+    <>
+      <Routes>
+        {/* Bare-layout routes */}
+        <Route path="/" element={<LandingScreen />} />
       <Route path="/signup" element={<SignupScreen />} />
       <Route path="/seller" element={<SellerLoginScreen />} />
       <Route path="/admin" element={<AdminLoginScreen />} />
       <Route path="/superadmin" element={<SuperAdminLoginScreen />} />
+      <Route path="/delivery" element={<DeliveryLoginScreen />} />
+      <Route path="/support" element={<SupportLoginScreen />} />
 
       {/* Standard layout routes */}
-      <Route path="/home" element={<StandardLayout><HomeScreen /></StandardLayout>} />
-      <Route path="/search/:keyword" element={<StandardLayout><HomeScreen /></StandardLayout>} />
-      <Route path="/product/:id" element={<StandardLayout><ProductScreen /></StandardLayout>} />
-      <Route path="/cart" element={<StandardLayout><CartScreen /></StandardLayout>} />
+      <Route path="/home" element={
+        userInfo?.isDeliveryAgent ? <Navigate to="/delivery/orderlist" replace /> : 
+        userInfo?.isSupport ? <Navigate to="/support/orders" replace /> :
+        <StandardLayout><HomeScreen /></StandardLayout>
+      } />
+      <Route path="/search/:keyword" element={userInfo?.isDeliveryAgent ? <Navigate to="/delivery/orderlist" replace /> : userInfo?.isSupport ? <Navigate to="/support/orders" replace /> : <StandardLayout><HomeScreen /></StandardLayout>} />
+      <Route path="/product/:id" element={userInfo?.isDeliveryAgent ? <Navigate to="/delivery/orderlist" replace /> : userInfo?.isSupport ? <Navigate to="/support/orders" replace /> : <StandardLayout><ProductScreen /></StandardLayout>} />
+      <Route path="/cart" element={userInfo?.isDeliveryAgent ? <Navigate to="/delivery/orderlist" replace /> : userInfo?.isSupport ? <Navigate to="/support/orders" replace /> : <StandardLayout><CartScreen /></StandardLayout>} />
+      <Route path="/wishlist" element={userInfo?.isDeliveryAgent ? <Navigate to="/delivery/orderlist" replace /> : userInfo?.isSupport ? <Navigate to="/support/orders" replace /> : <StandardLayout><WishlistScreen /></StandardLayout>} />
 
       <Route path="/login" element={<StandardLayout><LoginScreen /></StandardLayout>} />
       <Route path="/register" element={<StandardLayout><RegisterScreen /></StandardLayout>} />
 
       <Route
         path="/buyer-dashboard"
-        element={userInfo && !isSellerUser(userInfo) && !isPlatformAdmin(userInfo) && !isSuperAdminUser(userInfo) ? <Navigate to="/home" replace /> : <Navigate to="/login" replace />}
+        element={userInfo && !isSellerUser(userInfo) && !isPlatformAdmin(userInfo) && !isSuperAdminUser(userInfo) && !userInfo.isDeliveryAgent ? <Navigate to="/home" replace /> : <Navigate to="/login" replace />}
       />
       <Route
         path="/seller-dashboard"
@@ -86,6 +102,14 @@ const App = () => {
       <Route
         path="/superadmin-dashboard"
         element={isSuperAdminUser(userInfo) ? <Navigate to="/superadmin/userlist" replace /> : <Navigate to="/superadmin" replace />}
+      />
+      <Route
+        path="/delivery-dashboard"
+        element={userInfo?.isDeliveryAgent ? <Navigate to="/delivery/orderlist" replace /> : <Navigate to="/login" replace />}
+      />
+      <Route
+        path="/support-dashboard"
+        element={userInfo?.isSupport ? <Navigate to="/support/orders" replace /> : <Navigate to="/login" replace />}
       />
 
       <Route element={<PrivateRoute />}>
@@ -106,18 +130,34 @@ const App = () => {
         <Route path="/seller/paymentlist" element={<StandardLayout><AdminPaymentsScreen /></StandardLayout>} />
       </Route>
 
+      {/* Delivery Agent dashboard */}
+      <Route element={<DeliveryRoute />}>
+        <Route path="/delivery/orderlist" element={<StandardLayout><OrderListScreen /></StandardLayout>} />
+        <Route path="/delivery/paymentlist" element={<StandardLayout><DeliveryPaymentsScreen /></StandardLayout>} />
+      </Route>
+
       {/* Platform admin dashboard */}
       <Route element={<AdminRoute />}>
         <Route path="/admin/userlist" element={<StandardLayout><UserListScreen /></StandardLayout>} />
         <Route path="/admin/verifysellers" element={<StandardLayout><VerifySellersScreen /></StandardLayout>} />
+        <Route path="/admin/couponlist" element={<StandardLayout><CouponListScreen /></StandardLayout>} />
       </Route>
 
       {/* Super admin dashboard (same pages as admin) */}
       <Route element={<SuperAdminRoute />}>
         <Route path="/superadmin/userlist" element={<StandardLayout><UserListScreen /></StandardLayout>} />
         <Route path="/superadmin/verifysellers" element={<StandardLayout><VerifySellersScreen /></StandardLayout>} />
+        <Route path="/superadmin/couponlist" element={<StandardLayout><CouponListScreen /></StandardLayout>} />
+      </Route>
+      {/* Support Team dashboard */}
+      <Route element={<SupportRoute />}>
+        <Route path="/support/orders" element={<StandardLayout><OrderListScreen /></StandardLayout>} />
+        <Route path="/support/userlist" element={<StandardLayout><UserListScreen /></StandardLayout>} />
+        <Route path="/support/verifysellers" element={<StandardLayout><VerifySellersScreen /></StandardLayout>} />
       </Route>
     </Routes>
+    <SupportCallPanel />
+    </>
   );
 };
 

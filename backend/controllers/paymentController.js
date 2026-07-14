@@ -2,6 +2,7 @@ import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import asyncHandler from 'express-async-handler';
 import { prisma } from '../config/db.js';
+import { logSecurity } from '../utils/logger.js';
 
 // Setup Razorpay client
 const razorpay = process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET
@@ -40,7 +41,9 @@ const createOrder = asyncHandler(async (req, res) => {
     throw new Error('Order not found');
   }
 
-  if (order.userId !== req.user.id && !req.user.isSuperAdmin) {
+  // Authorization Check
+  if (order.userId !== req.user.id && !req.user.isSuperAdmin && !req.user.isAdmin) {
+    logSecurity('UNAUTHORIZED_PAYMENT_CREATION_ATTEMPT', { userId: req.user.id, orderId: order.id });
     res.status(403);
     throw new Error('Not authorized to make payment for this order');
   }
@@ -52,7 +55,6 @@ const createOrder = asyncHandler(async (req, res) => {
 
   const amountInPaise = Math.round(order.totalPrice * 100);
 
-  // If Razorpay client is initialized
   if (razorpay) {
     try {
       const razorpayOrder = await razorpay.orders.create({
@@ -62,11 +64,11 @@ const createOrder = asyncHandler(async (req, res) => {
       });
 
       // Upsert Payment Record
-      const payment = await prisma.payment.upsert({
+      await prisma.payment.upsert({
         where: { orderId: order.id },
         create: {
           orderId: order.id,
-          userId: req.user.id,
+          userId: order.userId,
           amount: order.totalPrice,
           currency: 'INR',
           paymentMethod: order.paymentMethod,
@@ -99,7 +101,7 @@ const createOrder = asyncHandler(async (req, res) => {
       where: { orderId: order.id },
       create: {
         orderId: order.id,
-        userId: req.user.id,
+        userId: order.userId,
         amount: order.totalPrice,
         currency: 'INR',
         paymentMethod: order.paymentMethod,
@@ -139,11 +141,17 @@ const verifyPayment = asyncHandler(async (req, res) => {
     throw new Error('Order not found');
   }
 
+  // Authorization Check: Only order owner or admin/superadmin can verify
+  if (order.userId !== req.user.id && !req.user.isSuperAdmin && !req.user.isAdmin) {
+    logSecurity('UNAUTHORIZED_PAYMENT_VERIFICATION_ATTEMPT', { userId: req.user.id, orderId: order.id });
+    res.status(403);
+    throw new Error('Not authorized to verify payment for this order');
+  }
+
   // Handle Mock Payment Verification
   if (razorpay_order_id.startsWith('mock_order_') || !razorpay) {
     const transactionId = razorpay_payment_id || `mock_pay_${Date.now()}`;
 
-    // Update payment record
     await prisma.payment.update({
       where: { orderId: orderId },
       data: {
@@ -152,7 +160,6 @@ const verifyPayment = asyncHandler(async (req, res) => {
       },
     });
 
-    // Mark order as paid
     const updatedOrder = await prisma.order.update({
       where: { id: orderId },
       data: {
@@ -168,6 +175,7 @@ const verifyPayment = asyncHandler(async (req, res) => {
       },
     });
 
+    logSecurity('MOCK_PAYMENT_SUCCESS', { orderId, userId: req.user.id });
     res.json({ success: true, message: 'Mock payment verified successfully', order: updatedOrder });
     return;
   }
@@ -180,6 +188,7 @@ const verifyPayment = asyncHandler(async (req, res) => {
     .digest('hex');
 
   if (expectedSignature !== razorpay_signature) {
+    logSecurity('RAZORPAY_SIGNATURE_VERIFICATION_FAILED', { orderId, userId: req.user.id });
     res.status(400);
     throw new Error('Payment signature verification failed');
   }
@@ -193,7 +202,6 @@ const verifyPayment = asyncHandler(async (req, res) => {
     // Fail gracefully and use default paymentMethod
   }
 
-  // Update local payment record
   await prisma.payment.update({
     where: { orderId: orderId },
     data: {
@@ -203,7 +211,6 @@ const verifyPayment = asyncHandler(async (req, res) => {
     },
   });
 
-  // Mark order as paid
   const updatedOrder = await prisma.order.update({
     where: { id: orderId },
     data: {
@@ -218,6 +225,8 @@ const verifyPayment = asyncHandler(async (req, res) => {
       },
     },
   });
+
+  logSecurity('RAZORPAY_PAYMENT_SUCCESS', { orderId, userId: req.user.id, transactionId: razorpay_payment_id });
 
   res.json({ success: true, message: 'Payment verified successfully', order: updatedOrder });
 });
@@ -235,6 +244,7 @@ const handleWebhook = asyncHandler(async (req, res) => {
     const digest = shasum.digest('hex');
 
     if (digest !== signature) {
+      logSecurity('WEBHOOK_SIGNATURE_VERIFICATION_FAILED', { signature });
       res.status(400);
       throw new Error('Invalid webhook signature');
     }
@@ -247,7 +257,6 @@ const handleWebhook = asyncHandler(async (req, res) => {
     const razorpayOrderId = paymentEntity.order_id;
     const paymentId = paymentEntity.id;
 
-    // Find local payment record by Razorpay order ID (transactionId during pending state)
     const payment = await prisma.payment.findFirst({
       where: { transactionId: razorpayOrderId },
     });
@@ -276,6 +285,7 @@ const handleWebhook = asyncHandler(async (req, res) => {
           },
         },
       });
+      logSecurity('WEBHOOK_PAYMENT_CAPTURED', { orderId: payment.orderId, transactionId: paymentId });
     }
   } else if (event === 'payment.failed') {
     const paymentEntity = payload.payment.entity;
@@ -292,6 +302,7 @@ const handleWebhook = asyncHandler(async (req, res) => {
           paymentStatus: 'FAILED',
         },
       });
+      logSecurity('WEBHOOK_PAYMENT_FAILED', { orderId: payment.orderId });
     }
   } else if (event === 'refund.processed') {
     const refundEntity = payload.refund.entity;
@@ -308,23 +319,14 @@ const handleWebhook = asyncHandler(async (req, res) => {
           paymentStatus: 'REFUNDED',
         },
       });
-
-      // Upsert Refund log
-      await prisma.refund.create({
-        data: {
-          paymentId: payment.id,
-          refundAmount: refundEntity.amount / 100,
-          refundReason: refundEntity.notes?.reason || 'Webhook processed refund',
-          refundStatus: 'SUCCESS',
-        },
-      });
+      logSecurity('WEBHOOK_REFUND_PROCESSED', { paymentId });
     }
   }
 
-  res.status(200).json({ status: 'ok' });
+  res.json({ status: 'ok' });
 });
 
-// @desc    Get Payment details
+// @desc    Get payment status by payment ID
 // @route   GET /api/payments/:paymentId
 // @access  Private
 const getPaymentStatus = asyncHandler(async (req, res) => {
@@ -336,57 +338,53 @@ const getPaymentStatus = asyncHandler(async (req, res) => {
           orderItems: {
             include: {
               product: {
-                select: {
-                  userId: true,
+                include: {
+                  user: { select: { name: true } },
                 },
               },
             },
           },
         },
       },
-      refunds: true,
     },
   });
 
   if (!payment) {
     res.status(404);
-    throw new Error('Payment record not found');
+    throw new Error('Payment not found');
   }
 
+  // Authorization Check: Only owner, admin/superadmin, or seller of item can read payment status
+  const isCustomer = payment.userId === req.user.id;
   const isSuperAdmin = req.user.isSuperAdmin;
   const isAdmin = req.user.isAdmin;
-  const isCustomer = payment.userId === req.user.id;
   const isSeller = payment.order?.orderItems?.some(
-    (item) => item.product && item.product.userId === req.user.id
+    item => item.product?.userId === req.user.id
   );
 
-  if (!isSuperAdmin && !isAdmin && !isCustomer && !isSeller) {
+  if (!isCustomer && !isSuperAdmin && !isAdmin && !isSeller) {
+    logSecurity('UNAUTHORIZED_PAYMENT_STATUS_ACCESS', { userId: req.user.id, paymentId: payment.id });
     res.status(403);
-    throw new Error('Not authorized to view this payment');
+    throw new Error('Not authorized to access this payment record');
   }
 
   res.json(formatPayment(payment));
 });
 
-// @desc    Process refund (Admin dashboard action)
+// @desc    Refund payment
 // @route   POST /api/payments/refund
-// @access  Private/Admin
+// @access  Private (Admin/Seller)
 const refundPayment = asyncHandler(async (req, res) => {
   const { paymentId, amount, reason } = req.body;
 
   const payment = await prisma.payment.findUnique({
     where: { id: paymentId },
-    include: { 
-      refunds: true,
+    include: {
       order: {
         include: {
           orderItems: {
             include: {
-              product: {
-                select: {
-                  userId: true,
-                },
-              },
+              product: true,
             },
           },
         },
@@ -396,133 +394,94 @@ const refundPayment = asyncHandler(async (req, res) => {
 
   if (!payment) {
     res.status(404);
-    throw new Error('Payment record not found');
+    throw new Error('Payment not found');
   }
 
-  // Check authorization
+  // Authorization Check: Only admin, superadmin, or seller of the products in the order can refund
   const isSuperAdmin = req.user.isSuperAdmin;
   const isAdmin = req.user.isAdmin;
   const isSeller = payment.order?.orderItems?.some(
-    (item) => item.product && item.product.userId === req.user.id
+    item => item.product?.userId === req.user.id
   );
 
   if (!isSuperAdmin && !isAdmin && !isSeller) {
+    logSecurity('UNAUTHORIZED_REFUND_REQUEST_ATTEMPT', { userId: req.user.id, paymentId: payment.id });
     res.status(403);
-    throw new Error('Not authorized to process refund for this payment');
+    throw new Error('Not authorized to request refund for this payment');
   }
 
-  if (payment.paymentStatus !== 'SUCCESS' && payment.paymentStatus !== 'PARTIALLY_REFUNDED') {
+  const refundAmount = Number(amount);
+  if (isNaN(refundAmount) || refundAmount <= 0 || refundAmount > payment.amount) {
     res.status(400);
-    throw new Error('Only successful payments can be refunded');
+    throw new Error('Invalid refund amount');
   }
 
-  // If order is cancelled, limit refund to MRP (itemsPrice)
-  let maxRefundLimit = payment.amount;
-  if (payment.order && payment.order.status === 'Cancelled') {
-    maxRefundLimit = payment.order.itemsPrice;
-  }
-
-  const refundAmt = amount !== undefined ? Number(amount) : maxRefundLimit;
-
-  // Calculate already refunded amount
-  const totalAlreadyRefunded = payment.refunds
-    .filter(r => r.refundStatus === 'SUCCESS')
-    .reduce((acc, r) => acc + r.refundAmount, 0);
-
-  const remainingRefundable = maxRefundLimit - totalAlreadyRefunded;
-
-  if (refundAmt > remainingRefundable) {
-    res.status(400);
-    throw new Error(
-      payment.order && payment.order.status === 'Cancelled'
-        ? `Refund amount exceeds remaining refundable MRP limit of ₹${remainingRefundable.toFixed(2)} (excluding tax & shipping).`
-        : `Refund amount exceeds remaining payment balance of ₹${remainingRefundable.toFixed(2)}.`
-    );
-  }
-
-  // If Razorpay client is initialized
   if (razorpay && payment.gateway === 'RAZORPAY') {
     try {
-      const refund = await razorpay.payments.refund(payment.transactionId, {
-        amount: Math.round(refundAmt * 100),
-        notes: { reason: reason || 'Customer requested refund' },
+      const razorpayRefund = await razorpay.payments.refund(payment.transactionId, {
+        amount: Math.round(refundAmount * 100),
+        notes: { reason: reason || 'Customer request' },
       });
 
-      // Update database status
+      await prisma.refund.create({
+        data: {
+          paymentId: payment.id,
+          refundAmount,
+          refundReason: reason || 'Customer request',
+          refundStatus: 'SUCCESS',
+        },
+      });
+
       await prisma.payment.update({
-        where: { id: paymentId },
+        where: { id: payment.id },
         data: {
           paymentStatus: 'REFUNDED',
         },
       });
 
-      const refundRecord = await prisma.refund.create({
-        data: {
-          paymentId: paymentId,
-          refundAmount: refundAmt,
-          refundReason: reason || 'Customer requested refund',
-          refundStatus: 'SUCCESS',
-        },
-      });
-
-      res.status(201).json({ success: true, refund: refundRecord });
+      res.status(201).json({ success: true, refundId: razorpayRefund.id });
     } catch (err) {
       res.status(500);
       throw new Error(`Razorpay Refund Failed: ${err.message}`);
     }
   } else {
-    // Mock Mode Refund
+    // Mock refund
+    await prisma.refund.create({
+      data: {
+        paymentId: payment.id,
+        refundAmount,
+        refundReason: reason || 'Mock refund',
+        refundStatus: 'SUCCESS',
+      },
+    });
+
     await prisma.payment.update({
-      where: { id: paymentId },
+      where: { id: payment.id },
       data: {
         paymentStatus: 'REFUNDED',
       },
     });
 
-    const refundRecord = await prisma.refund.create({
-      data: {
-        paymentId: paymentId,
-        refundAmount: refundAmt,
-        refundReason: reason || 'Mock refund processed',
-        refundStatus: 'SUCCESS',
-      },
-    });
-
-    res.status(201).json({ success: true, refund: refundRecord, isMock: true });
+    logSecurity('MOCK_REFUND_PROCESSED', { paymentId, amount });
+    res.status(201).json({ success: true, message: 'Mock refund successfully processed' });
   }
 });
 
+// @desc    Get all payments
+// @route   GET /api/payments
+// @access  Private/Seller
 const getAllPayments = asyncHandler(async (req, res) => {
-  const isSuperAdmin = req.user.isSuperAdmin;
-  const isAdmin = req.user.isAdmin;
-
   const payments = await prisma.payment.findMany({
     orderBy: { createdAt: 'desc' },
     include: {
-      user: {
-        select: {
-          id: true,
-          name: true,
-          email: true,
-        },
-      },
+      user: { select: { id: true, name: true, email: true } },
       order: {
-        select: {
-          id: true,
-          totalPrice: true,
-          itemsPrice: true,
-          taxPrice: true,
-          shippingPrice: true,
-          status: true,
+        include: {
           orderItems: {
             include: {
               product: {
                 include: {
-                  user: {
-                    select: {
-                      name: true,
-                    },
-                  },
+                  user: { select: { name: true } },
                 },
               },
             },
@@ -532,80 +491,98 @@ const getAllPayments = asyncHandler(async (req, res) => {
     },
   });
 
-  if (isSuperAdmin || isAdmin) {
-    res.json(payments.map(formatPayment));
-    return;
+  const isSuperAdmin = req.user.isSuperAdmin;
+  const isAdmin = req.user.isAdmin;
+  const filtered = [];
+
+  for (const payment of payments) {
+    if (isSuperAdmin || isAdmin) {
+      filtered.push(formatPayment(payment));
+      continue;
+    }
+
+    const isSeller = payment.order?.orderItems?.some(
+      item => item.product?.userId === req.user.id
+    );
+
+    if (isSeller) {
+      filtered.push(formatPayment(payment));
+    }
   }
 
-  // Otherwise, the requester is a seller. Filter payments that contain their products.
-  const filteredPayments = payments.filter((payment) => {
-    return payment.order?.orderItems?.some(
-      (item) => item.product && item.product.userId === req.user.id
-    );
-  });
-
-  res.json(filteredPayments.map(formatPayment));
+  res.json(filtered);
 });
 
-// @desc    Create Razorpay Order for Buzz Subscription
+// @desc    Create subscription (simulated Razorpay order creation for subscription plans)
 // @route   POST /api/payments/create-subscription-order
 // @access  Private
 const createSubscriptionOrder = asyncHandler(async (req, res) => {
-  const { plan } = req.body;
-  const price = plan === 'Yearly' ? 1499 : 179;
-  const amountInPaise = price * 100;
+  const { planName, price } = req.body;
+  if (!planName || isNaN(Number(price))) {
+    res.status(400);
+    throw new Error('Invalid plan name or price');
+  }
+
+  const orderAmount = Number(price);
 
   if (razorpay) {
     try {
       const razorpayOrder = await razorpay.orders.create({
-        amount: amountInPaise,
+        amount: Math.round(orderAmount * 100),
         currency: 'INR',
-        receipt: `sub_${req.user.id}_${Date.now()}`,
+        receipt: `sub_${Date.now()}`,
       });
-
       res.status(201).json({
-        plan,
         razorpayOrderId: razorpayOrder.id,
-        amount: price,
+        amount: orderAmount,
         currency: 'INR',
         keyId: process.env.RAZORPAY_KEY_ID,
       });
     } catch (err) {
       res.status(500);
-      throw new Error(`Razorpay Subscription Order Creation Failed: ${err.message}`);
+      throw new Error(`Razorpay Subscription Order Failed: ${err.message}`);
     }
   } else {
-    // Mock Fallback Mode
-    const mockOrderId = `mock_sub_order_${Date.now()}`;
     res.status(201).json({
-      plan,
-      razorpayOrderId: mockOrderId,
-      amount: price,
+      razorpayOrderId: `mock_sub_${Date.now()}`,
+      amount: orderAmount,
       currency: 'INR',
-      keyId: 'mock_key_id',
+      keyId: 'MOCK_KEY_ID',
+      isMock: true,
     });
   }
 });
 
-// @desc    Verify Buzz Subscription Payment
+// @desc    Verify subscription (mocks update user role status to seller APPROVED on successful payment verify)
 // @route   POST /api/payments/verify-subscription
 // @access  Private
 const verifySubscription = asyncHandler(async (req, res) => {
-  const { razorpay_order_id, razorpay_payment_id, razorpay_signature, plan } = req.body;
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
 
-  if (razorpay) {
-    const generated_signature = crypto
+  if (razorpay && !razorpay_order_id.startsWith('mock_sub_')) {
+    const body = razorpay_order_id + '|' + razorpay_payment_id;
+    const expectedSignature = crypto
       .createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
-      .update(razorpay_order_id + '|' + razorpay_payment_id)
+      .update(body.toString())
       .digest('hex');
 
-    if (generated_signature !== razorpay_signature) {
+    if (expectedSignature !== razorpay_signature) {
+      logSecurity('SUBSCRIPTION_SIGNATURE_VERIFICATION_FAILED', { userId: req.user.id });
       res.status(400);
-      throw new Error('Invalid payment signature');
+      throw new Error('Subscription signature verification failed');
     }
   }
 
-  res.status(200).json({ success: true, message: 'Subscription payment verified' });
+  const updatedUser = await prisma.user.update({
+    where: { id: req.user.id },
+    data: {
+      sellerStatus: 'APPROVED',
+    },
+  });
+
+  logSecurity('SELLER_SUBSCRIPTION_VERIFIED', { userId: req.user.id });
+
+  res.json({ success: true, sellerStatus: updatedUser.sellerStatus });
 });
 
 export {

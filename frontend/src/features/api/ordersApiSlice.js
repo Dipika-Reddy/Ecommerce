@@ -25,7 +25,11 @@ export const ordersApiSlice = apiSlice.injectEndpoints({
         method: 'PUT',
         body: details,
       }),
-      invalidatesTags: (result, error, { orderId }) => [{ type: 'Order', id: orderId }],
+      invalidatesTags: (result, error, { orderId }) => [
+        { type: 'Order', id: orderId },
+        { type: 'Order', id: 'LIST' },
+        'Order'
+      ],
     }),
 
     updateOrderStatus: builder.mutation({
@@ -37,6 +41,69 @@ export const ordersApiSlice = apiSlice.injectEndpoints({
       invalidatesTags: (result, error, { orderId }) => [
         { type: 'Order', id: orderId },
         { type: 'Order', id: 'LIST' },
+        'Order'
+      ],
+    }),
+
+    requestReturn: builder.mutation({
+      query: ({ orderId, reason, returnImage, refundDetails }) => ({
+        url: `${ORDERS_URL}/${orderId}/return`,
+        method: 'PUT',
+        body: { reason, returnImage, refundDetails },
+      }),
+      invalidatesTags: (result, error, { orderId }) => [
+        { type: 'Order', id: orderId },
+        { type: 'Order', id: 'LIST' },
+        'Order'
+      ],
+    }),
+
+    approveReturn: builder.mutation({
+      query: (orderId) => ({
+        url: `${ORDERS_URL}/${orderId}/return/approve`,
+        method: 'PUT',
+      }),
+      invalidatesTags: (result, error, orderId) => [
+        { type: 'Order', id: orderId },
+        { type: 'Order', id: 'LIST' },
+        'Order'
+      ],
+    }),
+
+    completeReturn: builder.mutation({
+      query: (orderId) => ({
+        url: `${ORDERS_URL}/${orderId}/return/complete`,
+        method: 'PUT',
+      }),
+      invalidatesTags: (result, error, orderId) => [
+        { type: 'Order', id: orderId },
+        { type: 'Order', id: 'LIST' },
+        'Order'
+      ],
+    }),
+
+    processRefund: builder.mutation({
+      query: (orderId) => ({
+        url: `${ORDERS_URL}/${orderId}/return/refund`,
+        method: 'PUT',
+      }),
+      invalidatesTags: (result, error, orderId) => [
+        { type: 'Order', id: orderId },
+        { type: 'Order', id: 'LIST' },
+        'Order'
+      ],
+    }),
+
+    assignDeliveryAgent: builder.mutation({
+      query: ({ orderId, deliveryAgentId }) => ({
+        url: `${ORDERS_URL}/${orderId}/assign-agent`,
+        method: 'PUT',
+        body: { deliveryAgentId },
+      }),
+      invalidatesTags: (result, error, { orderId }) => [
+        { type: 'Order', id: orderId },
+        { type: 'Order', id: 'LIST' },
+        'Order'
       ],
     }),
 
@@ -120,4 +187,9 @@ export const {
   useGetAllPaymentsQuery,
   useCreateSubscriptionOrderMutation,
   useVerifySubscriptionSignatureMutation,
+  useRequestReturnMutation,
+  useApproveReturnMutation,
+  useCompleteReturnMutation,
+  useProcessRefundMutation,
+  useAssignDeliveryAgentMutation,
 } = ordersApiSlice;

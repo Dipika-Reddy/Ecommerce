@@ -28,6 +28,7 @@ const DeliveryLocationPicker = ({ variant = 'desktop' }) => {
   const [newCity, setNewCity] = useState('');
   const [newDistrict, setNewDistrict] = useState('');
   const [newPinCode, setNewPinCode] = useState('');
+  const [newPhoneNumber, setNewPhoneNumber] = useState('');
 
   const pickerRef = useRef(null);
   const panelRef = useRef(null);
@@ -121,6 +122,7 @@ const DeliveryLocationPicker = ({ variant = 'desktop' }) => {
         city: newCity,
         district: newDistrict,
         pinCode: newPinCode,
+        phoneNumber: newPhoneNumber,
       })
     );
     setNewLabel('');
@@ -130,6 +132,7 @@ const DeliveryLocationPicker = ({ variant = 'desktop' }) => {
     setNewCity('');
     setNewDistrict('');
     setNewPinCode('');
+    setNewPhoneNumber('');
     closePanel();
   };
 
@@ -167,7 +170,7 @@ const DeliveryLocationPicker = ({ variant = 'desktop' }) => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                 </svg>
               )}
-              {!loc.isDefault && (
+              {locations.length > 1 && (
                 <button
                   type="button"
                   onClick={(e) => {
@@ -266,6 +269,17 @@ const DeliveryLocationPicker = ({ variant = 'desktop' }) => {
               value={newPinCode}
               onChange={(e) => setNewPinCode(e.target.value)}
               placeholder="530004"
+              required
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs focus:outline-none focus:border-orange-400"
+            />
+          </div>
+          <div>
+            <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wide mb-1 block">Phone Number</label>
+            <input
+              type="tel"
+              value={newPhoneNumber}
+              onChange={(e) => setNewPhoneNumber(e.target.value)}
+              placeholder="9876543210"
               required
               className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs focus:outline-none focus:border-orange-400"
             />

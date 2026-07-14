@@ -50,7 +50,7 @@ const deliveryLocationSlice = createSlice({
       }
     },
     addLocation: (state, action) => {
-      const { label, doorNo, street, area, city, district, pinCode } = action.payload;
+      const { label, doorNo, street, area, city, district, pinCode, phoneNumber } = action.payload;
       const id = `loc-${Date.now()}`;
       state.locations.push({
         id,
@@ -61,6 +61,7 @@ const deliveryLocationSlice = createSlice({
         city: city.trim(),
         district: district.trim(),
         pinCode: pinCode.trim(),
+        phoneNumber: phoneNumber ? phoneNumber.trim() : '',
         isDefault: false
       });
       state.activeLocationId = id;
@@ -68,11 +69,10 @@ const deliveryLocationSlice = createSlice({
     },
     removeLocation: (state, action) => {
       const id = action.payload;
-      const target = state.locations.find((loc) => loc.id === id);
-      if (!target || target.isDefault) return;
+      if (state.locations.length <= 1) return; // Always keep at least one location
       state.locations = state.locations.filter((loc) => loc.id !== id);
       if (state.activeLocationId === id) {
-        state.activeLocationId = state.locations[0]?.id ?? DEFAULT_LOCATION.id;
+        state.activeLocationId = state.locations[0]?.id;
       }
       saveToStorage(state);
     },

@@ -1,20 +1,22 @@
 import { Link, useLocation } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import { useSelector } from 'react-redux';
-import { useGetUsersQuery, useDeleteUserMutation, useUpdateUserMutation } from '../../features/api/usersApiSlice';
+import { useGetUsersQuery, useDeleteUserMutation } from '../../features/api/usersApiSlice';
 import { isSuperAdminUser } from '../../utils/userRoles';
 import Loader from '../../components/Loader';
 import Message from '../../components/Message';
-import CustomSelect from '../../components/CustomSelect';
 
 const UserListScreen = () => {
   const { data: users, isLoading, error, refetch } = useGetUsersQuery();
   const [deleteUser, { isLoading: loadingDelete }] = useDeleteUserMutation();
-  const [updateUser, { isLoading: loadingUpdate }] = useUpdateUserMutation();
 
   const { userInfo } = useSelector((state) => state.auth);
   const location = useLocation();
-  const staffBasePath = location.pathname.startsWith('/superadmin') ? '/superadmin' : '/admin';
+  const staffBasePath = location.pathname.startsWith('/superadmin') 
+    ? '/superadmin' 
+    : location.pathname.startsWith('/support') 
+      ? '/support' 
+      : '/admin';
 
   const deleteHandler = async (id) => {
     if (window.confirm('Delete this user account?')) {
@@ -28,32 +30,6 @@ const UserListScreen = () => {
     }
   };
 
-  const roleChangeHandler = async (user, newRole) => {
-    let isAdmin = false;
-    let isSuperAdmin = false;
-    let sellerStatus = 'NONE';
-
-    if (newRole === 'seller') {
-      sellerStatus = 'APPROVED';
-    } else if (newRole === 'admin') {
-      isAdmin = true;
-    } else if (newRole === 'superadmin') {
-      isAdmin = true;
-      isSuperAdmin = true;
-    }
-
-    try {
-      await updateUser({
-        userId: user._id,
-        data: { isAdmin, isSuperAdmin, sellerStatus },
-      }).unwrap();
-      toast.success(`Updated role for ${user.name} to ${newRole}`);
-      refetch();
-    } catch (err) {
-      toast.error(err?.data?.message || 'Failed to update user role');
-    }
-  };
-
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6 font-sans">
@@ -64,7 +40,7 @@ const UserListScreen = () => {
         </div>
       </div>
 
-      {(loadingDelete || loadingUpdate) && <Loader />}
+      {loadingDelete && <Loader />}
 
       {isLoading ? (
         <Loader />
@@ -83,15 +59,20 @@ const UserListScreen = () => {
               </tr>
             </thead>
             <tbody>
-              {users.map((user) => {
-                // Determine current role string
+              {users
+                .filter((u) => userInfo?.isSuperAdmin || !u.isSuperAdmin)
+                .map((user) => {
                 const currentRole = user.isSuperAdmin
                   ? 'superadmin'
                   : user.isAdmin
                     ? 'admin'
-                    : user.sellerStatus === 'APPROVED'
-                      ? 'seller'
-                      : 'customer';
+                    : user.isSupport
+                      ? 'support'
+                      : user.sellerStatus === 'APPROVED'
+                        ? 'seller'
+                        : user.isDeliveryAgent
+                          ? 'delivery'
+                          : 'customer';
 
                 const isSelf = user._id === userInfo?._id;
 
@@ -119,33 +100,51 @@ const UserListScreen = () => {
                             Rejected Seller
                           </span>
                         )}
+                        {user.isDeliveryAgent && user.deliveryStatus === 'APPROVED' && (
+                          <span className="text-[9px] font-bold tracking-wider bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full uppercase flex items-center gap-1">
+                            <svg className="h-3 w-3 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4.13-5.69z" clipRule="evenodd" />
+                            </svg>
+                            Verified Agent
+                          </span>
+                        )}
+                        {user.isDeliveryAgent && user.deliveryStatus === 'PENDING' && (
+                          <span className="text-[9px] font-black tracking-wider bg-amber-100 text-amber-800 border border-amber-300 px-2 py-0.5 rounded-full uppercase">
+                            Pending Agent
+                          </span>
+                        )}
+                        {user.isDeliveryAgent && user.deliveryStatus === 'REJECTED' && (
+                          <span className="text-[9px] font-bold tracking-wider bg-red-50 text-red-700 border border-red-200 px-2 py-0.5 rounded-full uppercase">
+                            Rejected Agent
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-gray-600">{user.email}</td>
                     <td className="px-4 py-3">
-                      {isSelf ? (
-                        <span className="inline-flex rounded-full bg-red-100 px-3 py-1 text-xs font-bold text-red-800 border border-red-200">
-                          {isSuperAdminUser(userInfo) ? 'Superadmin (Locked)' : 'Admin (Locked)'}
-                        </span>
-                      ) : (
-                        <CustomSelect
-                          value={currentRole}
-                          onChange={(v) => roleChangeHandler(user, v)}
-                          options={[
-                            { value: 'customer', label: 'Customer' },
-                            { value: 'seller', label: 'Seller' },
-                            { value: 'admin', label: 'Admin' },
-                            { value: 'superadmin', label: 'Superadmin' },
-                          ]}
-                        />
-                      )}
+                      {(() => {
+                        const roleLabels = {
+                          superadmin: { text: 'Superadmin', bg: 'bg-purple-100', textCol: 'text-purple-800', border: 'border-purple-200' },
+                          admin: { text: 'Admin', bg: 'bg-red-105', textCol: 'text-red-800', border: 'border-red-200' },
+                          support: { text: 'Support Team', bg: 'bg-pink-50', textCol: 'text-pink-700', border: 'border-pink-200' },
+                          seller: { text: 'Seller', bg: 'bg-green-50', textCol: 'text-green-700', border: 'border-green-200' },
+                          delivery: { text: 'Delivery Agent', bg: 'bg-blue-50', textCol: 'text-blue-700', border: 'border-blue-200' },
+                          customer: { text: 'Customer', bg: 'bg-slate-100', textCol: 'text-slate-700', border: 'border-slate-200' },
+                        };
+                        const role = roleLabels[currentRole] || roleLabels.customer;
+                        return (
+                          <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${role.bg} ${role.textCol} border ${role.border}`}>
+                            {role.text}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td className="px-4 py-3 text-right">
                       {isSelf ? (
                         <span className="text-xs text-gray-400 italic font-sans">Self protection active</span>
                       ) : (
                         <div className="flex items-center justify-end gap-2">
-                          {user.sellerStatus === 'PENDING' && (
+                          {(user.sellerStatus === 'PENDING' || (user.isDeliveryAgent && user.deliveryStatus === 'PENDING')) && (
                             <Link
                               to={`${staffBasePath}/verifysellers`}
                               className="text-xs font-bold text-amber-700 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 hover:border-amber-300 px-2.5 py-1.5 rounded transition font-sans animate-pulse"

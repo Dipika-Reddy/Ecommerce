@@ -7,7 +7,10 @@ import { useGetMyOrdersQuery, useCreateSubscriptionOrderMutation, useVerifySubsc
 import { setCredentials } from '../features/auth/authSlice';
 import Loader from '../components/Loader';
 import Message from '../components/Message';
-import { Shield, Sparkles, Check, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Shield, Sparkles, Check, ToggleLeft, ToggleRight, Trash2, Heart } from 'lucide-react';
+import { removeFromWishlist } from '../features/wishlist/wishlistSlice';
+import { isApprovedSeller, isPlatformAdmin, isSuperAdminUser, isDeliveryAgent, isSupportUser } from '../utils/userRoles';
+import CallSimulationModal from '../components/CallSimulationModal';
 
 const statusColor = {
   Pending: 'bg-gray-100 text-gray-700',
@@ -19,17 +22,23 @@ const statusColor = {
 
 const ProfileScreen = () => {
   const { userInfo } = useSelector((state) => state.auth);
+  const { wishlistItems } = useSelector((state) => state.wishlist);
   const dispatch = useDispatch();
+  const isManagement = userInfo && (isApprovedSeller(userInfo) || isPlatformAdmin(userInfo) || isSuperAdminUser(userInfo) || isDeliveryAgent(userInfo) || isSupportUser(userInfo));
 
   const [name, setName] = useState(userInfo.name);
   const [email, setEmail] = useState(userInfo.email);
+  const [phoneNumber, setPhoneNumber] = useState(userInfo.phoneNumber || '');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
 
   // Buzz subscription states
   const [isBuzz, setIsBuzz] = useState(() => {
     return localStorage.getItem('buybee_buzz_subscribed') === 'true';
   });
+
+  const [callModalOpen, setCallModalOpen] = useState(false);
   const [buzzPlan, setBuzzPlan] = useState(() => {
     return localStorage.getItem('buybee_buzz_plan') || 'Monthly';
   });
@@ -236,6 +245,7 @@ const ProfileScreen = () => {
   useEffect(() => {
     setName(userInfo.name);
     setEmail(userInfo.email);
+    setPhoneNumber(userInfo.phoneNumber || '');
   }, [userInfo]);
 
   const submitHandler = async (e) => {
@@ -245,13 +255,14 @@ const ProfileScreen = () => {
       return;
     }
     try {
-      const payload = { name, email };
+      const payload = { name, email, phoneNumber };
       if (password) payload.password = password;
       const res = await updateProfile(payload).unwrap();
       dispatch(setCredentials(res));
       toast.success('Profile updated');
       setPassword('');
       setConfirmPassword('');
+      setIsEditing(false);
     } catch (err) {
       toast.error(err?.data?.message || 'Update failed');
     }
@@ -259,167 +270,143 @@ const ProfileScreen = () => {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6">
-      <div className="grid grid-cols-1 gap-8 md:grid-cols-3">
+      <div className={`grid grid-cols-1 gap-8 ${!isManagement ? 'md:grid-cols-3' : ''}`}>
         {/* --- Account form --- */}
-        <div className="md:col-span-1">
-          <h1 className="mb-4 text-xl font-bold text-gray-900">My Profile</h1>
-          <form onSubmit={submitHandler} className="space-y-3 rounded-md border bg-white p-4">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Name</label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">New Password</label>
-              <input
-                type="password"
-                value={password}
-                placeholder="Leave blank to keep current"
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Confirm Password</label>
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={loadingUpdate}
-              className="w-full rounded-md bg-brand-600 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
-            >
-              Update
-            </button>
-            {loadingUpdate && <Loader />}
-          </form>
+        <div className={`${isManagement ? 'max-w-md mx-auto w-full' : 'md:col-span-1'}`}>
+          {!isEditing ? (
+            <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+              <div className="mb-6">
+                <h1 className="text-xl font-extrabold text-[#2a1758]">User Profile & Settings</h1>
+              </div>
 
-          {/* --- Subscriptions Section (buzz) --- */}
-          <div className="mt-6 text-left">
-            <h2 className="mb-3 text-lg font-bold text-gray-900 flex items-center gap-1.5">
-              <Sparkles size={18} className="text-amber-500 fill-amber-500" /> Memberships &amp; Subscriptions
-            </h2>
-            <div className="rounded-md border border-gray-200 bg-white p-5 space-y-4 shadow-sm relative overflow-hidden">
-              {isBuzz ? (
-                <>
-                  <div className="absolute top-0 right-0 bg-amber-500 text-white font-extrabold text-[10px] px-3 py-1 rounded-bl uppercase tracking-wide">
-                    BUZZ MEMBER
+              <div className="space-y-6">
+                {/* Account Details */}
+                <div>
+                  <h2 className="text-base font-bold text-[#2a1758] mb-3">Account Details</h2>
+                  <div className="space-y-3 text-[15px] text-gray-700">
+                    <p><strong className="font-bold text-[#2a1758]">Username:</strong> {userInfo.name}</p>
+                    <p><strong className="font-bold text-[#2a1758]">Email:</strong> {userInfo.email}</p>
+                    <p><strong className="font-bold text-[#2a1758]">Phone Number:</strong> {userInfo.phoneNumber || 'Not provided'}</p>
                   </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-1.5">
-                      <span className="bg-amber-100 border border-amber-300 text-amber-800 text-[10px] px-2 py-0.5 rounded font-black uppercase">
-                        ✓ buzz
-                      </span>
-                      <span className="text-sm font-bold text-gray-800">Active Membership</span>
-                    </div>
-                    <p className="text-xs text-gray-500">Plan: {buzzPlan === 'Yearly' ? '₹1,499 / Year' : '₹179 / Month'}</p>
-                  </div>
+                </div>
 
-                  <div className="border-t border-gray-100 pt-3 flex items-center justify-between text-xs">
-                    <span className="text-gray-500">Auto-renew settings:</span>
-                    <button 
-                      onClick={toggleAutoRenew}
-                      className="flex items-center gap-1 font-bold text-gray-800 hover:text-amber-600 transition"
-                    >
-                      {autoRenew ? (
-                        <>
-                          <ToggleRight size={24} className="text-green-600" />
-                          <span>Enabled</span>
-                        </>
-                      ) : (
-                        <>
-                          <ToggleLeft size={24} className="text-gray-400" />
-                          <span>Disabled</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
+                <hr className="border-gray-100" />
 
-                  <div className="border-t border-gray-100 pt-3">
-                    <button
-                      onClick={handleCancel}
-                      className="w-full text-center bg-gray-50 hover:bg-gray-100 text-red-600 hover:text-red-700 py-2 rounded-md text-xs font-semibold border border-gray-200 transition"
-                    >
-                      Cancel Membership
-                    </button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <p className="text-xs text-gray-600 leading-relaxed">
-                    Unlock <strong className="text-gray-800">FREE Express Delivery</strong>, early access to deals, and exclusive coupons with a premium <strong className="text-amber-600">Buzz</strong> subscription!
-                  </p>
-
-                  <div className="space-y-2.5 pt-2">
-                    <label className="block text-xs font-bold text-gray-500">Select a Buzz Plan</label>
-                    <div className="grid grid-cols-2 gap-2 text-left">
-                      <label className={`flex flex-col p-2.5 border rounded-lg cursor-pointer transition ${
-                        selectedPlan === 'Monthly' ? 'border-amber-500 bg-amber-50/20' : 'border-gray-200 hover:bg-gray-50'
-                      }`}>
-                        <div className="flex items-center gap-1.5">
-                          <input
-                            type="radio"
-                            name="buzzPlan"
-                            value="Monthly"
-                            checked={selectedPlan === 'Monthly'}
-                            onChange={() => setSelectedPlan('Monthly')}
-                            className="accent-amber-500"
-                          />
-                          <span className="text-xs font-bold text-gray-800">Monthly</span>
-                        </div>
-                        <span className="text-xs text-amber-700 font-extrabold mt-1">₹179/mo</span>
-                      </label>
-
-                      <label className={`flex flex-col p-2.5 border rounded-lg cursor-pointer transition ${
-                        selectedPlan === 'Yearly' ? 'border-amber-500 bg-amber-50/20' : 'border-gray-200 hover:bg-gray-50'
-                      }`}>
-                        <div className="flex items-center gap-1.5">
-                          <input
-                            type="radio"
-                            name="buzzPlan"
-                            value="Yearly"
-                            checked={selectedPlan === 'Yearly'}
-                            onChange={() => setSelectedPlan('Yearly')}
-                            className="accent-amber-500"
-                          />
-                          <span className="text-xs font-bold text-gray-800">Yearly</span>
-                        </div>
-                        <span className="text-xs text-amber-700 font-extrabold mt-1">₹1,499/yr</span>
-                        <span className="text-[9px] text-green-700 font-bold bg-green-50 px-1 rounded self-start mt-0.5">Save 30%</span>
-                      </label>
-                    </div>
-                  </div>
-
+                {/* Account Security */}
+                <div>
+                  <h2 className="text-base font-bold text-[#2a1758] mb-1.5">Account Security</h2>
+                  <p className="text-[13px] text-[#8e85a6] mb-4 font-medium">Password modification requires credentials validation.</p>
                   <button
-                    onClick={handleSubscribe}
-                    className="w-full bg-amber-500 hover:bg-amber-600 text-white font-extrabold py-2.5 rounded-md text-xs transition shadow-sm mt-2 flex items-center justify-center gap-1"
+                    type="button"
+                    onClick={() => setIsEditing(true)}
+                    className="w-full rounded-xl border-none bg-orange-500 py-3 text-[14px] font-bold text-white hover:bg-orange-600 transition flex items-center justify-center gap-2 shadow-sm"
                   >
-                    <Sparkles size={13} /> Join Buzz Today
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" /></svg>
+                    Update Credentials Options
                   </button>
-                </>
-              )}
+                </div>
+              </div>
             </div>
-          </div>
+
+          ) : (
+            <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+              <h1 className="mb-6 text-xl font-extrabold text-[#2a1758]">Edit Profile</h1>
+              <form onSubmit={submitHandler} className="space-y-4">
+                <div>
+                  <label className="mb-1.5 block text-sm font-bold text-[#2a1758]">Username</label>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-[#4a3b75] focus:ring-1 focus:ring-[#4a3b75] focus:outline-none transition"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-bold text-[#2a1758]">Email</label>
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-[#4a3b75] focus:ring-1 focus:ring-[#4a3b75] focus:outline-none transition"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-bold text-[#2a1758]">Phone Number</label>
+                  <input
+                    type="text"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-[#4a3b75] focus:ring-1 focus:ring-[#4a3b75] focus:outline-none transition"
+                  />
+                </div>
+                <hr className="border-gray-100 my-5" />
+                <div>
+                  <label className="mb-1.5 block text-sm font-bold text-[#2a1758]">New Password</label>
+                  <input
+                    type="password"
+                    value={password}
+                    placeholder="Leave blank to keep current"
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-[#4a3b75] focus:ring-1 focus:ring-[#4a3b75] focus:outline-none transition"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-bold text-[#2a1758]">Confirm Password</label>
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:border-[#4a3b75] focus:ring-1 focus:ring-[#4a3b75] focus:outline-none transition"
+                  />
+                </div>
+                
+                <div className="flex gap-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditing(false)}
+                    className="flex-1 rounded-xl bg-gray-100 py-2.5 text-sm font-bold text-gray-700 hover:bg-gray-200 transition"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loadingUpdate}
+                    className="flex-1 rounded-xl bg-[#2a1758] py-2.5 text-sm font-bold text-white hover:bg-[#1f1042] disabled:opacity-50 transition"
+                  >
+                    Save Changes
+                  </button>
+                </div>
+                {loadingUpdate && <Loader />}
+              </form>
+            </div>
+          )}
+
+          {/* Helpline Card */}
+          <button
+            onClick={() => setCallModalOpen(true)}
+            className="block w-full text-left rounded-2xl border border-green-100 bg-green-50 p-5 shadow-sm hover:bg-green-100 transition-colors duration-150 group"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-green-500 shadow-sm group-hover:bg-green-600 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                </svg>
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold text-green-700 uppercase tracking-wide">Customer Helpline</p>
+                <p className="text-base font-extrabold text-green-800 tracking-wide">+91 800-800-8000</p>
+                <p className="text-[11px] text-green-600 mt-0.5">Click to Call Support Team</p>
+              </div>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-green-400 ml-auto shrink-0 group-hover:translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </div>
+          </button>
+
         </div>
 
         {/* --- Order history & Payment History --- */}
+        {!isManagement && (
         <div className="md:col-span-2 space-y-8">
           <div>
             <h1 className="mb-4 text-xl font-bold text-gray-900">Order History</h1>
@@ -458,9 +445,29 @@ const ProfileScreen = () => {
                           )}
                         </td>
                         <td className="px-4 py-3">
-                          <span className={`rounded-full px-2 py-1 text-xs font-semibold ${statusColor[order.status]}`}>
-                            {order.status}
-                          </span>
+                          {(() => {
+                            let displayStatus = order.status;
+                            let currentStatusColor = statusColor[order.status] || 'bg-gray-100 text-gray-700';
+
+                            if (order.isRefunded) {
+                              displayStatus = 'Returned';
+                              currentStatusColor = 'bg-fuchsia-100 text-fuchsia-700';
+                            } else if (order.returnStatus === 'Collected') {
+                              displayStatus = 'Return Successful';
+                              currentStatusColor = 'bg-teal-100 text-teal-700';
+                            } else if (order.returnStatus === 'Approved') {
+                              displayStatus = 'Return Approved';
+                              currentStatusColor = 'bg-blue-100 text-blue-700';
+                            } else if (order.returnStatus === 'Requested') {
+                              displayStatus = 'Return Requested';
+                              currentStatusColor = 'bg-orange-100 text-orange-700';
+                            }
+                            return (
+                              <span className={`rounded-full px-2 py-1 text-xs font-semibold ${currentStatusColor}`}>
+                                {displayStatus}
+                              </span>
+                            );
+                          })()}
                         </td>
                         <td className="px-4 py-3">
                           <Link to={`/order/${order._id}`} className="font-medium text-brand-600 hover:underline">
@@ -502,6 +509,7 @@ const ProfileScreen = () => {
                         (order.payments || []).map((pay) => ({
                           ...pay,
                           orderId: order._id,
+                          isOrderRefunded: order.isRefunded,
                         }))
                       )
                       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
@@ -522,12 +530,13 @@ const ProfileScreen = () => {
                           </td>
                           <td className="px-4 py-3">
                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
+                              (pay.paymentStatus === 'REFUNDED' || pay.isOrderRefunded) ? 'bg-blue-100 text-blue-700 border border-blue-200' :
                               pay.paymentStatus === 'SUCCESS' ? 'bg-green-100 text-green-700 border border-green-200' :
                               pay.paymentStatus === 'PENDING' ? 'bg-amber-100 text-amber-700 border border-amber-200' :
                               pay.paymentStatus === 'FAILED' ? 'bg-red-100 text-red-700 border border-red-200' :
-                              pay.paymentStatus === 'REFUNDED' ? 'bg-blue-100 text-blue-700 border border-blue-200' : 'bg-gray-100 text-gray-700'
+                              'bg-gray-100 text-gray-700'
                             }`}>
-                              {pay.paymentStatus}
+                              {pay.isOrderRefunded ? 'REFUNDED' : pay.paymentStatus}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-xs text-gray-500">
@@ -541,6 +550,8 @@ const ProfileScreen = () => {
             )}
           </div>
         </div>
+        )}
+        
       </div>
       {/* Cancellation Refund Details Modal */}
       {cancelModalOpen && (() => {
@@ -896,6 +907,7 @@ const ProfileScreen = () => {
           </div>
         </div>
       )}
+      <CallSimulationModal isOpen={callModalOpen} onClose={() => setCallModalOpen(false)} />
     </div>
   );
 };

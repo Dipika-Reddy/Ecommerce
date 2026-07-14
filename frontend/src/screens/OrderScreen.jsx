@@ -8,11 +8,17 @@ import {
   useVerifyPaymentSignatureMutation,
   useUpdateOrderStatusMutation,
   useRefundPaymentMutation,
+  useRequestReturnMutation,
+  useApproveReturnMutation,
+  useCompleteReturnMutation,
+  useProcessRefundMutation,
 } from '../features/api/ordersApiSlice';
+import { useUploadProductImageMutation } from '../features/api/productsApiSlice';
 import Loader from '../components/Loader';
 import Message from '../components/Message';
 import CustomSelect from '../components/CustomSelect';
-import { isSellerUser, isSuperAdminUser } from '../utils/userRoles';
+import AssignAgentModal from '../components/AssignAgentModal';
+import { isSellerUser, isSuperAdminUser, isSupportUser } from '../utils/userRoles';
 
 const STATUS_OPTIONS = ['Pending', 'Processing', 'Shipped', 'Delivered', 'Cancelled'];
 
@@ -38,13 +44,18 @@ const loadRazorpayScript = () => {
 const OrderScreen = () => {
   const { id: orderId } = useParams();
   const { userInfo } = useSelector((state) => state.auth);
-  const canManageOrder = isSellerUser(userInfo) || isSuperAdminUser(userInfo) || userInfo?.isAdmin;
+  const canManageOrder = isSellerUser(userInfo) || isSuperAdminUser(userInfo) || userInfo?.isAdmin || isSupportUser(userInfo);
 
   const { data: order, isLoading, error, refetch } = useGetOrderDetailsQuery(orderId);
   const [createPaymentOrder, { isLoading: loadingCreatePayment }] = useCreatePaymentOrderMutation();
   const [verifyPaymentSignature, { isLoading: loadingVerifySignature }] = useVerifyPaymentSignatureMutation();
   const [updateStatus, { isLoading: loadingStatus }] = useUpdateOrderStatusMutation();
   const [refundPayment, { isLoading: loadingRefund }] = useRefundPaymentMutation();
+
+  const [requestReturn, { isLoading: loadingRequestReturn }] = useRequestReturnMutation();
+  const [approveReturn, { isLoading: loadingApproveReturn }] = useApproveReturnMutation();
+  const [completeReturn, { isLoading: loadingCompleteReturn }] = useCompleteReturnMutation();
+  const [processRefund, { isLoading: loadingProcessRefund }] = useProcessRefundMutation();
 
   useEffect(() => {
     if (order && !order.isPaid && order.paymentMethod === 'UPI') {
@@ -95,6 +106,73 @@ const OrderScreen = () => {
       }).unwrap();
       toast.success('Refund processed successfully!');
       setShowRefundModal(false);
+      refetch();
+    } catch (err) {
+      toast.error(err?.data?.message || 'Failed to process refund');
+    }
+  };
+
+  const [showReturnModal, setShowReturnModal] = useState(false);
+  const [returnReason, setReturnReason] = useState('');
+  const [returnImage, setReturnImage] = useState('');
+  const [refundDetails, setRefundDetails] = useState('');
+  const [returnImageLoading, setReturnImageLoading] = useState(false);
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
+
+  const [uploadProductImage, { isLoading: loadingUpload }] = useUploadProductImageMutation();
+
+  const uploadReturnFileHandler = async (e) => {
+    const formData = new FormData();
+    formData.append('image', e.target.files[0]);
+    try {
+      const res = await uploadProductImage(formData).unwrap();
+      setReturnImage(res.image);
+      toast.success('Image uploaded successfully');
+    } catch (err) {
+      toast.error(err?.data?.message || err.error);
+    }
+  };
+
+  const handleRequestReturn = async (e) => {
+    e.preventDefault();
+    if (order.paymentMethod === 'Cash on Delivery' && !refundDetails) {
+      toast.error('Please provide refund details for COD orders');
+      return;
+    }
+    try {
+      await requestReturn({ orderId, reason: returnReason, returnImage, refundDetails }).unwrap();
+      toast.success('Return requested successfully!');
+      setShowReturnModal(false);
+      refetch();
+    } catch (err) {
+      toast.error(err?.data?.message || 'Failed to request return');
+    }
+  };
+
+  const handleApproveReturn = async () => {
+    try {
+      await approveReturn(orderId).unwrap();
+      toast.success('Return approved successfully!');
+      refetch();
+    } catch (err) {
+      toast.error(err?.data?.message || 'Failed to approve return');
+    }
+  };
+
+  const handleCompleteReturn = async () => {
+    try {
+      await completeReturn(orderId).unwrap();
+      toast.success('Return marked as collected!');
+      refetch();
+    } catch (err) {
+      toast.error(err?.data?.message || 'Failed to complete return');
+    }
+  };
+
+  const handleProcessRefund = async () => {
+    try {
+      await processRefund(orderId).unwrap();
+      toast.success('Refund processed successfully for the returned order!');
       refetch();
     } catch (err) {
       toast.error(err?.data?.message || 'Failed to process refund');
@@ -230,6 +308,23 @@ const OrderScreen = () => {
 
   const isOrderOwner = userInfo._id === order.user._id || userInfo.id === order.user.id || userInfo._id === order.user || userInfo.id === order.user;
 
+  let displayStatus = order.status;
+  let currentStatusColor = statusColor[order.status] || 'bg-gray-100 text-gray-700';
+
+  if (order.isRefunded) {
+    displayStatus = 'Returned';
+    currentStatusColor = 'bg-fuchsia-100 text-fuchsia-700';
+  } else if (order.returnStatus === 'Collected') {
+    displayStatus = 'Return Successful';
+    currentStatusColor = 'bg-teal-100 text-teal-700';
+  } else if (order.returnStatus === 'Approved') {
+    displayStatus = 'Return Approved';
+    currentStatusColor = 'bg-blue-100 text-blue-700';
+  } else if (order.returnStatus === 'Requested') {
+    displayStatus = 'Return Requested';
+    currentStatusColor = 'bg-orange-100 text-orange-700';
+  }
+
   return (
     <div className="mx-auto max-w-5xl px-4 py-6">
       <div id="invoice-content" className="bg-transparent pb-6">
@@ -238,25 +333,58 @@ const OrderScreen = () => {
             <h1 className="text-2xl font-bold text-gray-900">Order Summary</h1>
             <p className="text-xs text-gray-400">ID: #{order._id}</p>
           </div>
-          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusColor[order.status]}`}>
-            {order.status}
+          <span className={`rounded-full px-3 py-1 text-xs font-semibold ${currentStatusColor}`}>
+            {displayStatus}
           </span>
         </div>
 
         <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-3">
           <div className="space-y-4 md:col-span-2">
             <div className="rounded-md border bg-white p-4">
-              <h2 className="mb-2 font-bold text-gray-800">Shipping &amp; Delivery</h2>
-              <p className="text-sm text-gray-600">
-                <strong>Address: </strong>{order.shippingAddress.address}, {order.shippingAddress.city}{' '}
-                {order.shippingAddress.postalCode}, {order.shippingAddress.country}
-              </p>
-              {order.shippingAddress.deliveryMethod && (
-                <p className="text-sm text-gray-600 mt-1">
-                  <strong>Method: </strong>{order.shippingAddress.deliveryMethod}
-                </p>
-              )}
-              <div className="mt-2 no-print">
+              <div className="flex justify-between items-start gap-4">
+                <div>
+                  <h2 className="mb-2 font-bold text-gray-800">Shipping &amp; Delivery</h2>
+                  <p className="text-sm text-gray-600">
+                    <strong>Address: </strong>{order.shippingAddress.address}, {order.shippingAddress.city}{' '}
+                    {order.shippingAddress.postalCode}, {order.shippingAddress.country}
+                  </p>
+                  {order.shippingAddress.deliveryMethod && (
+                    <p className="text-sm text-gray-600 mt-1">
+                      <strong>Method: </strong>{order.shippingAddress.deliveryMethod}
+                    </p>
+                  )}
+                  {order.shippingAddress.phoneNumber && (
+                    <p className="text-sm text-gray-600 mt-1">
+                      <strong>Phone: </strong>
+                      <a href={`tel:${order.shippingAddress.phoneNumber}`} className="text-blue-600 hover:underline">
+                        {order.shippingAddress.phoneNumber}
+                      </a>
+                    </p>
+                  )}
+                </div>
+                {userInfo?.isDeliveryAgent && (
+                  <a
+                    href={`https://maps.google.com/maps?q=${encodeURIComponent([
+                      order.shippingAddress.address || order.shippingAddress.doorNo,
+                      order.shippingAddress.street,
+                      order.shippingAddress.area,
+                      order.shippingAddress.city,
+                      order.shippingAddress.postalCode || order.shippingAddress.pinCode,
+                      order.shippingAddress.country
+                    ].filter(Boolean).join(', '))}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex flex-col items-center justify-center bg-blue-50 text-blue-600 border border-blue-100 hover:bg-blue-100 p-2.5 rounded-xl transition-colors shrink-0 shadow-sm"
+                  >
+                    <svg className="w-5 h-5 mb-1 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <span className="text-[10px] font-bold uppercase tracking-wider">Open Map</span>
+                  </a>
+                )}
+              </div>
+              <div className="mt-3 no-print">
                 {order.isDelivered ? (
                   <Message variant="success">Delivered on {new Date(order.deliveredAt).toLocaleString()}</Message>
                 ) : (
@@ -264,6 +392,45 @@ const OrderScreen = () => {
                 )}
               </div>
             </div>
+
+            {/* Agent Info Section */}
+            {(isSuperAdminUser(userInfo) || userInfo.isAdmin || isSupportUser(userInfo) || isSellerUser(userInfo) || (isOrderOwner && order.deliveryAgent)) && (
+              <div className="rounded-md border bg-white p-4">
+                <div className="flex justify-between items-center mb-3">
+                  <h2 className="font-bold text-gray-800">Delivery Agent</h2>
+                  {(isSuperAdminUser(userInfo) || userInfo.isAdmin || isSupportUser(userInfo) || isSellerUser(userInfo)) && (
+                    <button
+                      onClick={() => setAssignModalOpen(true)}
+                      className="text-xs font-semibold text-brand-600 hover:text-brand-800 border border-brand-200 hover:border-brand-300 rounded px-2 py-1 transition-colors"
+                    >
+                      {order.deliveryAgent ? 'Change Agent' : 'Assign Agent'}
+                    </button>
+                  )}
+                </div>
+                {order.deliveryAgent ? (
+                  <div className="bg-orange-50/50 rounded-lg p-3 border border-orange-100 flex flex-col gap-1">
+                    <p className="text-sm font-semibold text-slate-800">{order.deliveryAgent.name}</p>
+                    {order.assignedBy && (
+                      <span className="text-[10px] bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded font-bold w-fit mt-0.5 mb-1 block">
+                        {order.assignedBy}
+                      </span>
+                    )}
+                    <div className="flex gap-4 text-xs text-slate-600 mt-1">
+                      <div className="flex items-center gap-1">
+                        <svg className="w-3.5 h-3.5 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                        <a href={`tel:${order.deliveryAgent.phoneNumber}`} className="hover:underline">{order.deliveryAgent.phoneNumber || 'N/A'}</a>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <svg className="w-3.5 h-3.5 text-orange-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                        <a href={`mailto:${order.deliveryAgent.email}`} className="hover:underline">{order.deliveryAgent.email}</a>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">No delivery agent assigned yet.</p>
+                )}
+              </div>
+            )}
 
             <div className="rounded-md border bg-white p-4">
               <h2 className="mb-2 font-bold text-gray-800">Payment Method</h2>
@@ -329,6 +496,12 @@ const OrderScreen = () => {
                   <span>Items</span>
                   <span>₹{order.itemsPrice.toFixed(2)}</span>
                 </div>
+                {order.couponCode && (
+                  <div className="flex justify-between text-green-600 font-medium">
+                    <span>Coupon ({order.couponCode})</span>
+                    <span>-₹{order.couponDiscount.toFixed(2)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span>Shipping</span>
                   <span>₹{order.shippingPrice.toFixed(2)}</span>
@@ -398,23 +571,76 @@ const OrderScreen = () => {
               </div>
             )}
 
-            {/* Admin-only refund control */}
-            {canManageOrder && successPayment && (
-              <div className="rounded-md border bg-white p-5 no-print">
-                <h2 className="mb-2 text-sm font-bold text-gray-800">Admin: Refund Portal</h2>
-                <p className="text-xs text-slate-500 mb-3">
-                  This order has a successful transaction. You can process refunds directly from this panel.
-                </p>
-                {successPayment.paymentStatus === 'REFUNDED' ? (
-                  <div className="text-xs font-semibold text-blue-600 bg-blue-50 border border-blue-100 p-2 rounded-lg text-center font-bold">
-                    ✓ Fully Refunded
+            {/* Return & Refund tracking */}
+            {((order.status === 'Delivered' && isOrderOwner) || order.returnStatus) && (
+              <div className="rounded-md border bg-white p-5 no-print overflow-hidden mt-4">
+                <h2 className="mb-3 text-sm font-bold text-gray-800">Return & Refund</h2>
+                
+                {order.returnStatus ? (
+                  <div className="space-y-3">
+                    <p className="text-sm">
+                      <strong>Status: </strong> 
+                      <span className="text-brand-600 font-bold">{order.isRefunded ? 'Refunded' : (order.returnStatus === 'Collected' ? 'Successful' : order.returnStatus)}</span>
+                    </p>
+                    <h4 className="text-sm font-semibold text-gray-800 mb-1">Reason for Return</h4>
+                    <p className="text-sm text-gray-600 bg-white p-3 rounded-xl border border-gray-100">{order.returnReason}</p>
+                    {order.refundDetails && (
+                      <>
+                        <h4 className="text-sm font-semibold text-gray-800 mb-1 mt-2">Refund Details (UPI/Bank)</h4>
+                        <p className="text-sm text-gray-600 bg-white p-3 rounded-xl border border-gray-100">{order.refundDetails}</p>
+                      </>
+                    )}
+                    {order.returnImage && (
+                      <div className="mt-3">
+                        <h4 className="text-sm font-semibold text-gray-800 mb-1">Attached Image</h4>
+                        <img src={order.returnImage} alt="Return attachment" className="max-h-32 rounded object-cover border border-gray-200" />
+                      </div>
+                    )}
+
+                    {canManageOrder && order.returnStatus === 'Requested' && (
+                      <button
+                        onClick={handleApproveReturn}
+                        disabled={loadingApproveReturn}
+                        className="w-full mt-2 rounded-md bg-amber-500 hover:bg-amber-600 py-2 text-sm font-semibold text-white transition duration-150 shadow-sm"
+                      >
+                        {loadingApproveReturn ? 'Processing...' : 'Approve Return'}
+                      </button>
+                    )}
+
+                    {userInfo?.isDeliveryAgent && order.returnStatus === 'Approved' && (
+                      <button
+                        onClick={handleCompleteReturn}
+                        disabled={loadingCompleteReturn}
+                        className="w-full mt-2 rounded-md bg-blue-600 hover:bg-blue-700 py-2 text-sm font-semibold text-white transition duration-150 shadow-sm"
+                      >
+                        {loadingCompleteReturn ? 'Processing...' : 'Mark Return Successful'}
+                      </button>
+                    )}
+
+
+
+                    {canManageOrder && order.returnStatus === 'Collected' && !order.isRefunded && (
+                      <button
+                        onClick={handleProcessRefund}
+                        disabled={loadingProcessRefund}
+                        className="w-full mt-2 rounded-md bg-green-600 hover:bg-green-700 py-2 text-sm font-semibold text-white transition duration-150 shadow-sm"
+                      >
+                        {loadingProcessRefund ? 'Processing...' : 'Process Refund'}
+                      </button>
+                    )}
+
+                    {order.isRefunded && (
+                      <div className="text-xs font-semibold text-green-700 bg-green-50 border border-green-200 p-2 rounded-lg text-center mt-2">
+                        ✓ Refund Processed
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <button
-                    onClick={handleOpenRefund}
-                    className="w-full rounded-md bg-red-650 hover:bg-red-700 py-2 text-sm font-semibold text-white transition duration-150 shadow-sm"
+                    onClick={() => setShowReturnModal(true)}
+                    className="w-full rounded-md bg-slate-100 hover:bg-slate-200 py-2 text-sm font-semibold text-slate-700 transition duration-150 border border-slate-300 shadow-sm"
                   >
-                    Issue Refund
+                    Request Return
                   </button>
                 )}
               </div>
@@ -725,7 +951,7 @@ const OrderScreen = () => {
                 <button
                   type="submit"
                   disabled={loadingRefund}
-                  className="flex-1 bg-red-650 hover:bg-red-700 text-white py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-md shadow-red-100 disabled:opacity-50"
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow-md shadow-red-100 disabled:opacity-50"
                 >
                   {loadingRefund ? 'Processing...' : 'Confirm Refund'}
                 </button>
@@ -733,6 +959,103 @@ const OrderScreen = () => {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Return Request Modal */}
+      {showReturnModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl max-w-md w-full border border-slate-200 shadow-2xl p-6 relative animate-scale-in">
+            <h3 className="text-lg font-bold text-slate-900 mb-2">Request Return</h3>
+            <p className="text-xs text-slate-400 mb-4">Please provide a reason for returning this order.</p>
+
+            <form onSubmit={handleRequestReturn} className="space-y-4">
+              <div className="text-left">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Reason</label>
+                <textarea
+                  required
+                  rows="3"
+                  value={returnReason}
+                  onChange={(e) => setReturnReason(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 text-slate-700 px-3.5 py-2.5 rounded-xl text-sm outline-none focus:border-brand-500 focus:bg-white resize-none font-medium"
+                  placeholder="Tell us why you want to return this..."
+                ></textarea>
+              </div>
+
+              <div className="text-left">
+                <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Add Photo (Required)</label>
+                <input
+                  type="file"
+                  id="return-image-upload"
+                  accept="image/*"
+                  onChange={uploadReturnFileHandler}
+                  required
+                  className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200 transition"
+                />
+                {loadingUpload && <Loader />}
+                {returnImage && (
+                  <div className="relative inline-block mt-2">
+                    <img src={returnImage} alt="Preview" className="max-h-24 rounded object-cover border border-slate-200" />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReturnImage('');
+                        document.getElementById('return-image-upload').value = '';
+                      }}
+                      className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow hover:bg-red-600 transition"
+                      title="Remove image"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {order.paymentMethod === 'Cash on Delivery' && (
+                <div className="text-left">
+                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1.5">Refund Payment Details (Required)</label>
+                  <p className="text-[10px] text-slate-500 mb-2">Since this was a Cash on Delivery order, please provide your UPI ID or Bank Account Details to receive your refund.</p>
+                  <textarea
+                    required
+                    rows="2"
+                    value={refundDetails}
+                    onChange={(e) => setRefundDetails(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-200 text-slate-700 px-3.5 py-2.5 rounded-xl text-sm outline-none focus:border-brand-500 focus:bg-white resize-none font-medium"
+                    placeholder="e.g. UPI: 9876543210@ybl OR Acct: 12345678, IFSC: ABCD0001234"
+                  ></textarea>
+                </div>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowReturnModal(false)}
+                  className="flex-1 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-250 py-2 rounded-xl text-xs font-semibold transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loadingRequestReturn}
+                  className="flex-1 bg-brand-600 hover:bg-brand-700 text-white py-2 rounded-xl text-xs font-bold transition flex items-center justify-center shadow-md disabled:opacity-50"
+                >
+                  {loadingRequestReturn ? 'Submitting...' : 'Submit Request'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      
+      {assignModalOpen && (
+        <AssignAgentModal
+          isOpen={assignModalOpen}
+          onClose={() => setAssignModalOpen(false)}
+          orderId={order._id}
+          currentAgentId={order.deliveryAgent?.id || order.deliveryAgentId}
+          shippingAddress={order.shippingAddress}
+        />
       )}
     </div>
   );

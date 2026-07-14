@@ -14,9 +14,6 @@ const Product = ({ product }) => {
 
   // Simulate an original price and a discount (e.g., 20% off)
   const originalPrice = product.price * 1.25;
-  
-  // Decide deterministically if a product gets a Prime badge (e.g., if rating is above 4.3)
-  const isPrime = product.rating >= 4.3;
 
   const handleAddToCart = (e) => {
     e.preventDefault();
@@ -69,6 +66,19 @@ const Product = ({ product }) => {
 
   return (
     <div className="group flex flex-col bg-white border border-gray-200 rounded shadow-sm hover:shadow-md transition-shadow duration-150 p-4 relative justify-between">
+      {/* Wishlist Heart */}
+      {!isManagement && (
+        <button 
+          onClick={toggleWishlist}
+          className="absolute top-2 right-2 z-10 p-1.5 rounded-full bg-white/80 hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors shadow-sm"
+          title={inWishlist ? "Remove from wishlist" : "Add to wishlist"}
+        >
+          <Heart 
+            className={`w-4 h-4 ${inWishlist ? 'fill-red-500 text-red-500' : ''}`} 
+          />
+        </button>
+      )}
+      
       <Link to={`/product/${product._id}`} className="flex flex-col flex-1">
         {/* Centered Image */}
         <div className="w-full aspect-square bg-white flex items-center justify-center overflow-hidden mb-3">
@@ -95,10 +105,7 @@ const Product = ({ product }) => {
 
           {/* Rating */}
           <div className="mt-1.5 flex items-center gap-1.5">
-            <Rating value={product.rating} text="" />
-            <span className="text-[12px] text-brand-600 hover:text-red-700 hover:underline">
-              {product.numReviews}
-            </span>
+            <Rating value={product.rating} numReviews={product.numReviews} />
           </div>
 
           {/* Pricing */}
@@ -122,18 +129,8 @@ const Product = ({ product }) => {
             </div>
           </div>
 
-          {/* Buzz Tag & Delivery */}
+          {/* Delivery */}
           <div className="mt-2 flex flex-col gap-0.5">
-            {isPrime && (
-              <div className="flex items-center gap-1">
-                {/* Amber checkmark + buzz text */}
-                <span className="inline-flex items-center bg-amber-50 px-1 py-0.5 rounded text-[9px] font-black text-amber-600 border border-amber-200">
-                  ✓ buzz
-                </span>
-                <span className="text-[11px] text-gray-500 font-medium">FREE Delivery</span>
-              </div>
-            )}
-            
             <p className="text-[11px] text-gray-500">
               Get it by <span className="font-semibold text-gray-800">Tomorrow</span>
             </p>

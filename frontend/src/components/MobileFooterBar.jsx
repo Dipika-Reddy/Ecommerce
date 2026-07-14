@@ -3,7 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useSelector, useDispatch } from 'react-redux';
 import { useLogoutMutation } from '../features/api/usersApiSlice';
 import { logout } from '../features/auth/authSlice';
-import { isApprovedSeller, isPlatformAdmin, isSuperAdminUser, getStaffBasePath } from '../utils/userRoles';
+import { isApprovedSeller, isPlatformAdmin, isSuperAdminUser, isDeliveryAgent, getStaffBasePath } from '../utils/userRoles';
 
 const CATEGORIES = ['Fashion', 'Creative', 'Mobiles', 'Furniture', 'Beauty', 'Electronics'];
 
@@ -44,9 +44,9 @@ const MobileFooterBar = () => {
 
   const logoutHandler = async () => {
     try { await logoutApiCall().unwrap(); } catch (_) {}
+    navigate('/');
     dispatch(logout());
     setProfileOpen(false);
-    navigate('/');
   };
 
   const handleCategoryNav = (cat) => {
@@ -220,7 +220,7 @@ const MobileFooterBar = () => {
                   onClick={() => setProfileOpen(false)}
                   className="flex items-center gap-3 w-full px-4 py-3 rounded-xl hover:bg-slate-50 transition text-sm font-semibold text-slate-700"
                 >
-                  Verify Sellers
+                  Verify Users
                 </Link>
                 <Link
                   to="/seller/productlist"
@@ -238,6 +238,30 @@ const MobileFooterBar = () => {
                 </Link>
                 <Link
                   to="/seller/paymentlist"
+                  onClick={() => setProfileOpen(false)}
+                  className="flex items-center gap-3 w-full px-4 py-3 rounded-xl hover:bg-slate-50 transition text-sm font-semibold text-slate-700"
+                >
+                  Manage Payments
+                </Link>
+              </>
+            )}
+
+            {isDelivery && (
+              <>
+                <div className="px-4 pt-3 pb-1">
+                  <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
+                    Delivery Controls
+                  </p>
+                </div>
+                <Link
+                  to="/delivery/orderlist"
+                  onClick={() => setProfileOpen(false)}
+                  className="flex items-center gap-3 w-full px-4 py-3 rounded-xl hover:bg-slate-50 transition text-sm font-semibold text-slate-700"
+                >
+                  Manage Orders
+                </Link>
+                <Link
+                  to="/delivery/paymentlist"
                   onClick={() => setProfileOpen(false)}
                   className="flex items-center gap-3 w-full px-4 py-3 rounded-xl hover:bg-slate-50 transition text-sm font-semibold text-slate-700"
                 >
@@ -274,28 +298,45 @@ const MobileFooterBar = () => {
       {/* ── Bottom Tab Bar ─────────────────────────────────────── */}
       <nav className="fixed bottom-0 left-0 right-0 z-[195] md:hidden bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] flex items-stretch h-16">
         {/* Home */}
-        <Link
-          to="/home"
-          id="mobile-nav-home"
-          className={`flex flex-1 flex-col items-center justify-center gap-1 transition-colors ${isHome ? 'text-orange-500' : 'text-slate-500 hover:text-slate-800'}`}
-        >
-          <svg className="h-5 w-5" fill={isHome ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={isHome ? 0 : 1.8}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-          </svg>
-          <span className="text-[10px] font-bold">Home</span>
-        </Link>
+        {!isDelivery && (
+          <Link
+            to="/home"
+            id="mobile-nav-home"
+            className={`flex flex-1 flex-col items-center justify-center gap-1 transition-colors ${isHome ? 'text-orange-500' : 'text-slate-500 hover:text-slate-800'}`}
+          >
+            <svg className="h-5 w-5" fill={isHome ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={isHome ? 0 : 1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+            </svg>
+            <span className="text-[10px] font-bold">Home</span>
+          </Link>
+        )}
 
         {/* Menu */}
-        <button
-          id="mobile-nav-menu"
-          onClick={() => { setMenuOpen((o) => !o); setProfileOpen(false); }}
-          className={`flex flex-1 flex-col items-center justify-center gap-1 transition-colors ${menuOpen ? 'text-orange-500' : 'text-slate-500 hover:text-slate-800'}`}
-        >
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-          </svg>
-          <span className="text-[10px] font-bold">Menu</span>
-        </button>
+        {!isDelivery && (
+          <button
+            id="mobile-nav-menu"
+            onClick={() => { setMenuOpen((o) => !o); setProfileOpen(false); }}
+            className={`flex flex-1 flex-col items-center justify-center gap-1 transition-colors ${menuOpen ? 'text-orange-500' : 'text-slate-500 hover:text-slate-800'}`}
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+            <span className="text-[10px] font-bold">Menu</span>
+          </button>
+        )}
+
+        {/* Delivery Orders */}
+        {isDelivery && (
+          <Link
+            to="/delivery/orderlist"
+            className={`flex flex-1 flex-col items-center justify-center gap-1 transition-colors ${location.pathname === '/delivery/orderlist' ? 'text-orange-500' : 'text-slate-500 hover:text-slate-800'}`}
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10" />
+            </svg>
+            <span className="text-[10px] font-bold">Orders</span>
+          </Link>
+        )}
 
         {/* Cart */}
         {!isManagement && (

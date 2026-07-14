@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
+import { Eye, EyeOff } from 'lucide-react';
 import { useLoginMutation } from '../features/api/usersApiSlice';
 import { setCredentials } from '../features/auth/authSlice';
 import { isPlatformAdmin } from '../utils/userRoles';
@@ -10,6 +11,7 @@ import Loader from '../components/Loader';
 const AdminLoginScreen = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -19,7 +21,7 @@ const AdminLoginScreen = () => {
 
   useEffect(() => {
     if (userInfo && isPlatformAdmin(userInfo)) {
-      navigate('/admin/userlist', { replace: true });
+      navigate('/home', { replace: true });
     }
   }, [userInfo, navigate]);
 
@@ -35,7 +37,7 @@ const AdminLoginScreen = () => {
 
       dispatch(setCredentials(res));
       toast.success(`Welcome back, ${res.name}`);
-      navigate('/admin/userlist');
+      navigate('/home');
     } catch (err) {
       toast.error(err?.data?.message || 'Login failed');
     }
@@ -84,15 +86,24 @@ const AdminLoginScreen = () => {
               <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-widest">
                 Password
               </label>
-              <input
-                id="admin-password"
-                type="password"
-                value={password}
-                required
-                placeholder="••••••••"
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-xl border border-slate-600 bg-slate-700/60 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-colors"
-              />
+              <div className="relative">
+                <input
+                  id="admin-password"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  required
+                  placeholder="••••••••"
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full rounded-xl border border-slate-600 bg-slate-700/60 px-4 py-2.5 pr-10 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition-colors"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300 focus:outline-none"
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
 
             <button
