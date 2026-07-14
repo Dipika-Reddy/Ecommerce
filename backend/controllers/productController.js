@@ -58,6 +58,7 @@ const getProducts = asyncHandler(async (req, res) => {
     prisma.product.findMany({
       where,
       orderBy,
+      distinct: ['name'],
       take: pageSize,
       skip: pageSize * (page - 1),
       include: {
@@ -311,6 +312,7 @@ const getTopProducts = asyncHandler(async (req, res) => {
     orderBy: {
       rating: 'desc',
     },
+    distinct: ['name'],
     take: 5,
   });
 

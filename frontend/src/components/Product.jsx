@@ -3,12 +3,14 @@ import { useDispatch, useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
 import { addToCart } from '../features/cart/cartSlice';
 import Rating from './Rating';
+import { isApprovedSeller, isPlatformAdmin, isSuperAdminUser } from '../utils/userRoles';
 
 const Product = ({ product }) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
   const { userInfo } = useSelector((state) => state.auth);
+  const isManagement = userInfo && (isApprovedSeller(userInfo) || isPlatformAdmin(userInfo) || isSuperAdminUser(userInfo));
 
   // Simulate an original price and a discount (e.g., 20% off)
   const originalPrice = product.price * 1.25;
@@ -20,7 +22,7 @@ const Product = ({ product }) => {
     e.preventDefault();
     e.stopPropagation();
 
-    if (userInfo && (userInfo.sellerStatus === 'APPROVED' || userInfo.isAdmin || userInfo.isSuperAdmin)) {
+    if (isManagement) {
       toast.error("Management accounts cannot add items to cart");
       return;
     }
@@ -151,31 +153,33 @@ const Product = ({ product }) => {
       </Link>
       
       {/* Action Buttons at the very bottom */}
-      <div className="mt-3">
-        {product.countInStock === 0 ? (
-          <button
-            disabled
-            className="block w-full text-center bg-slate-200 text-slate-400 py-2 rounded-lg text-xs font-bold cursor-not-allowed"
-          >
-            Out of Stock
-          </button>
-        ) : (
-          <div className="flex gap-2">
+      {!isManagement && (
+        <div className="mt-3">
+          {product.countInStock === 0 ? (
             <button
-              onClick={handleAddToCart}
-              className="flex-1 text-center bg-amber-500 hover:bg-amber-600 text-white py-2 rounded-lg text-xs font-bold transition duration-150 shadow-sm"
+              disabled
+              className="block w-full text-center bg-slate-200 text-slate-400 py-2 rounded-lg text-xs font-bold cursor-not-allowed"
             >
-              Add to Cart
+              Out of Stock
             </button>
-            <button
-              onClick={handleOrderNow}
-              className="flex-1 text-center bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-lg text-xs font-bold transition duration-150 shadow-sm"
-            >
-              Order Now
-            </button>
-          </div>
-        )}
-      </div>
+          ) : (
+            <div className="flex gap-2">
+              <button
+                onClick={handleAddToCart}
+                className="flex-1 text-center bg-amber-500 hover:bg-amber-600 text-white py-2 rounded-lg text-xs font-bold transition duration-150 shadow-sm"
+              >
+                Add to Cart
+              </button>
+              <button
+                onClick={handleOrderNow}
+                className="flex-1 text-center bg-orange-500 hover:bg-orange-600 text-white py-2 rounded-lg text-xs font-bold transition duration-150 shadow-sm"
+              >
+                Order Now
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };
