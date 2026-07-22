@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
@@ -36,6 +36,122 @@ const ProductScreen = () => {
   const [uploadProductImage, { isLoading: loadingUpload }] = useUploadProductImageMutation();
   const [isZoomed, setIsZoomed] = useState(false);
   const [zoomStyle, setZoomStyle] = useState({ transformOrigin: 'center center' });
+  const [touchStartX, setTouchStartX] = useState(0);
+
+  // State for Review Image Modal Lightbox
+  const [selectedReviewImageIndex, setSelectedReviewImageIndex] = useState(null);
+
+  // Collect all review images from reviews list
+  const allReviewImages = product?.reviews
+    ? product.reviews.flatMap((r) => (Array.isArray(r.images) && r.images.length > 0 ? r.images : r.image ? [r.image] : []))
+    : [];
+
+  const openReviewLightbox = (imgUrl) => {
+    const idx = allReviewImages.indexOf(imgUrl);
+    setSelectedReviewImageIndex(idx !== -1 ? idx : 0);
+  };
+
+  const closeReviewLightbox = () => {
+    setSelectedReviewImageIndex(null);
+  };
+
+  const handlePrevReviewImage = (e) => {
+    if (e) e.stopPropagation();
+    if (allReviewImages.length === 0) return;
+    setSelectedReviewImageIndex((prev) => (prev - 1 + allReviewImages.length) % allReviewImages.length);
+  };
+
+  const handleNextReviewImage = (e) => {
+    if (e) e.stopPropagation();
+    if (allReviewImages.length === 0) return;
+    setSelectedReviewImageIndex((prev) => (prev + 1) % allReviewImages.length);
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (selectedReviewImageIndex === null) return;
+      if (e.key === 'Escape') closeReviewLightbox();
+      if (e.key === 'ArrowLeft') handlePrevReviewImage();
+      if (e.key === 'ArrowRight') handleNextReviewImage();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedReviewImageIndex, allReviewImages.length]);
+
+  const wheelCooldownRef = useRef(false);
+
+  // --- Keyboard Arrow Key Navigation (Laptop / PC Keypad) ---
+  useEffect(() => {
+    const handleMainImageKeyDown = (e) => {
+      const activeTag = document.activeElement?.tagName?.toLowerCase();
+      if (activeTag === 'input' || activeTag === 'textarea' || selectedReviewImageIndex !== null) {
+        return;
+      }
+
+      if (e.key === 'ArrowLeft') {
+        if (!product?.images?.length || product.images.length <= 1) return;
+        setActiveImage((prev) => (prev - 1 + product.images.length) % product.images.length);
+      } else if (e.key === 'ArrowRight') {
+        if (!product?.images?.length || product.images.length <= 1) return;
+        setActiveImage((prev) => (prev + 1) % product.images.length);
+      }
+    };
+
+    window.addEventListener('keydown', handleMainImageKeyDown);
+    return () => window.removeEventListener('keydown', handleMainImageKeyDown);
+  }, [product?.images, selectedReviewImageIndex]);
+
+  // --- Touchpad / Trackpad Horizontal Wheel Swipe ---
+  const handleWheelSwipe = (e) => {
+    if (!product?.images?.length || product.images.length <= 1 || isZoomed) return;
+    if (wheelCooldownRef.current) return;
+
+    if (Math.abs(e.deltaX) > 20) {
+      wheelCooldownRef.current = true;
+      if (e.deltaX > 20) {
+        setActiveImage((prev) => (prev + 1) % product.images.length);
+      } else if (e.deltaX < -20) {
+        setActiveImage((prev) => (prev - 1 + product.images.length) % product.images.length);
+      }
+      setTimeout(() => {
+        wheelCooldownRef.current = false;
+      }, 350);
+    }
+  };
+
+  const handleTouchStart = (e) => {
+    setTouchStartX(e.touches[0].clientX);
+  };
+
+  const handleTouchEnd = (e) => {
+    if (!product?.images?.length || product.images.length <= 1) return;
+    const touchEndX = e.changedTouches[0].clientX;
+    const diff = touchStartX - touchEndX;
+
+    if (diff > 40) {
+      setActiveImage((prev) => (prev + 1) % product.images.length);
+    } else if (diff < -40) {
+      setActiveImage((prev) => (prev - 1 + product.images.length) % product.images.length);
+    }
+  };
+
+  const handlePrevImage = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (!product?.images?.length || product.images.length <= 1) return;
+    setActiveImage((prev) => (prev - 1 + product.images.length) % product.images.length);
+  };
+
+  const handleNextImage = (e) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (!product?.images?.length || product.images.length <= 1) return;
+    setActiveImage((prev) => (prev + 1) % product.images.length);
+  };
 
   // Handle zooming at the specific click location
   const handleImageClick = (e) => {
@@ -134,10 +250,13 @@ const ProductScreen = () => {
         {/* --- Image gallery --- */}
         <div>
           <div 
-            className={`aspect-square overflow-hidden rounded-lg border bg-white flex items-center justify-center relative ${isZoomed ? 'cursor-zoom-out' : 'cursor-zoom-in'}`}
+            className={`aspect-square overflow-hidden rounded-lg border bg-white flex items-center justify-center relative select-none ${isZoomed ? 'cursor-zoom-out' : 'cursor-zoom-in'}`}
             onClick={handleImageClick}
             onMouseMove={handleMouseMove}
             onMouseLeave={() => setIsZoomed(false)}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+            onWheel={handleWheelSwipe}
           >
             <img
               src={product.images[activeImage]}
@@ -145,6 +264,38 @@ const ProductScreen = () => {
               className={`h-full w-full object-contain p-2 transition-transform duration-75 ${isZoomed ? 'scale-[2.5]' : 'scale-100'}`}
               style={isZoomed ? zoomStyle : {}}
             />
+
+            {/* Navigation Arrows & Counter Overlay */}
+            {product.images?.length > 1 && !isZoomed && (
+              <>
+                <button
+                  type="button"
+                  onClick={handlePrevImage}
+                  className="absolute left-2.5 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/95 hover:bg-white text-slate-800 hover:text-slate-950 shadow-md border border-slate-200 flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 z-20 cursor-pointer"
+                  aria-label="Previous image"
+                  title="Previous image (Left Arrow Key)"
+                >
+                  <svg className="w-5 h-5 stroke-current" fill="none" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleNextImage}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full bg-white/95 hover:bg-white text-slate-800 hover:text-slate-950 shadow-md border border-slate-200 flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 z-20 cursor-pointer"
+                  aria-label="Next image"
+                  title="Next image (Right Arrow Key)"
+                >
+                  <svg className="w-5 h-5 stroke-current" fill="none" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+
+                <div className="absolute bottom-3 left-1/2 -translate-x-1/2 bg-slate-900/60 text-white text-[11px] font-semibold px-2.5 py-0.5 rounded-full backdrop-blur-sm pointer-events-none">
+                  {activeImage + 1} / {product.images.length}
+                </div>
+              </>
+            )}
           </div>
           {product.images.length > 1 && (
             <div className="mt-3 flex gap-2">
@@ -152,8 +303,8 @@ const ProductScreen = () => {
                 <button
                   key={img + idx}
                   onClick={() => setActiveImage(idx)}
-                  className={`h-16 w-16 overflow-hidden rounded-md border-2 ${
-                    activeImage === idx ? 'border-brand-600' : 'border-transparent'
+                  className={`h-16 w-16 overflow-hidden rounded-md border-2 transition-all ${
+                    activeImage === idx ? 'border-brand-600 scale-105 shadow-sm' : 'border-transparent opacity-70 hover:opacity-100'
                   }`}
                 >
                   <img src={img} alt={`${product.name} ${idx + 1}`} className="h-full w-full object-cover" />
@@ -276,7 +427,13 @@ const ProductScreen = () => {
                 <Rating value={review.rating} text="" />
                 <p className="mt-2 text-sm text-gray-700">{review.comment}</p>
                 {review.image && (
-                  <img src={review.image} alt="Review attachment" className="mt-3 max-h-32 rounded object-cover" />
+                  <img
+                    src={review.image}
+                    alt="Review attachment"
+                    onClick={() => openReviewLightbox(review.image)}
+                    className="mt-3 max-h-32 rounded object-cover cursor-pointer hover:opacity-90 transition-opacity border hover:border-brand-500 shadow-sm"
+                    title="Click to view full screen"
+                  />
                 )}
               </div>
             ))}
@@ -366,6 +523,67 @@ const ProductScreen = () => {
         </div>
         )}
       </div>
+      {/* ── Review Image Full-Screen Lightbox Modal ────────────── */}
+      {selectedReviewImageIndex !== null && allReviewImages.length > 0 && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in"
+          onClick={closeReviewLightbox}
+        >
+          {/* Close / Cross Button */}
+          <button
+            onClick={closeReviewLightbox}
+            className="absolute top-4 right-4 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 z-50 shadow-lg border border-white/20"
+            aria-label="Close image preview"
+            title="Close (Esc)"
+          >
+            <svg className="w-6 h-6 stroke-current" fill="none" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+
+          {/* Previous Arrow Button */}
+          {allReviewImages.length > 1 && (
+            <button
+              onClick={handlePrevReviewImage}
+              className="absolute left-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/15 hover:bg-white/30 text-white flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 z-50 shadow-xl border border-white/20"
+              aria-label="Previous review image"
+              title="Previous image"
+            >
+              <svg className="w-7 h-7 stroke-current" fill="none" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+          )}
+
+          {/* Main Fit-To-Screen Image */}
+          <div className="relative max-w-full max-h-full flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={allReviewImages[selectedReviewImageIndex]}
+              alt="Review full screen preview"
+              className="max-h-[85vh] max-w-[90vw] object-contain rounded-lg shadow-2xl select-none"
+            />
+            {allReviewImages.length > 1 && (
+              <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-white/20 text-white text-xs font-semibold px-3 py-1 rounded-full backdrop-blur-md">
+                {selectedReviewImageIndex + 1} / {allReviewImages.length}
+              </div>
+            )}
+          </div>
+
+          {/* Next Arrow Button */}
+          {allReviewImages.length > 1 && (
+            <button
+              onClick={handleNextReviewImage}
+              className="absolute right-4 top-1/2 -translate-y-1/2 w-12 h-12 rounded-full bg-white/15 hover:bg-white/30 text-white flex items-center justify-center transition-all duration-200 hover:scale-110 active:scale-95 z-50 shadow-xl border border-white/20"
+              aria-label="Next review image"
+              title="Next image"
+            >
+              <svg className="w-7 h-7 stroke-current" fill="none" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 };

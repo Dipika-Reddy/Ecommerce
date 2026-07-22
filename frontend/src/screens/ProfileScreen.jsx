@@ -483,7 +483,7 @@ const ProfileScreen = () => {
           </div>
 
           <div>
-            <h1 className="mb-4 text-xl font-bold text-gray-900">Payment Audit Trail</h1>
+            <h1 className="mb-4 text-xl font-bold text-gray-900">Payment History</h1>
             {loadingOrders ? (
               <Loader />
             ) : ordersError ? (

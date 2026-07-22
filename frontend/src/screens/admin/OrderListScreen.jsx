@@ -117,8 +117,8 @@ const OrderListScreen = () => {
             <tbody>
               {filteredOrders.map((order) => (
                 <tr key={order._id} className="border-t">
-                  <td className="px-4 py-3 font-mono text-xs align-top">{order._id.slice(-8)}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-2.5 font-mono text-xs align-middle">{order._id.slice(-8)}</td>
+                  <td className="px-4 py-2.5 align-middle">
                     <div className="font-bold">{order.user?.name || 'Deleted user'}</div>
                     {order.shippingAddress && (
                       <div className="text-xs text-gray-500 mt-0.5">
@@ -147,7 +147,7 @@ const OrderListScreen = () => {
                       </div>
                     )}
                   </td>
-                  <td className="px-4 py-3 align-top">
+                  <td className="px-4 py-2.5 align-middle">
                      {order.user?.phoneNumber ? (
                        <a href={`tel:${order.user.phoneNumber}`} className="inline-flex items-center gap-1.5 bg-brand-50 hover:bg-brand-100 text-brand-700 border border-brand-200 px-3 py-1.5 rounded-lg text-xs font-semibold transition whitespace-nowrap">
                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -159,34 +159,49 @@ const OrderListScreen = () => {
                        <span className="text-gray-400 text-xs italic whitespace-nowrap">Not provided</span>
                      )}
                   </td>
-                  <td className="px-4 py-3 align-top whitespace-nowrap">{new Date(order.createdAt).toLocaleDateString()}</td>
-                  <td className="px-4 py-3 align-top">
+                  <td className="px-4 py-2.5 align-middle whitespace-nowrap">{new Date(order.createdAt).toLocaleDateString()}</td>
+                  <td className="px-4 py-2.5 align-middle">
                      <div className="whitespace-nowrap">₹{order.totalPrice.toFixed(2)}</div>
-                     {userInfo?.isDeliveryAgent && (
-                       <div className="text-xs text-gray-500 mt-0.5 whitespace-nowrap">
-                         {order.paymentMethod === 'Cash on Delivery' || order.paymentMethod?.toLowerCase().includes('delivery') ? order.paymentMethod : 'Prepaid'}
-                       </div>
-                     )}
                   </td>
-                  <td className="px-4 py-3 align-top">
-                     {order.isPaid ? (
-                       <span className="text-green-600 font-medium whitespace-nowrap">✓ Paid</span>
-                     ) : (
-                       <div className="flex flex-col items-start gap-1">
-                         <span className="text-red-500 font-medium whitespace-nowrap">✗ Unpaid</span>
-                         {userInfo?.isDeliveryAgent && (
-                           <button
-                             onClick={() => markAsPaidHandler(order._id)}
-                             className="text-[10px] bg-brand-500 text-white px-2 py-0.5 rounded hover:bg-brand-600 whitespace-nowrap"
-                           >
-                             Mark Paid
-                           </button>
-                         )}
-                       </div>
-                     )}
-                  </td>
+                   <td className="px-4 py-2.5 align-middle">
+                      {(() => {
+                        const isPrepaidOrder = order.paymentMethod !== 'Cash on Delivery' && !order.paymentMethod?.toLowerCase().includes('delivery');
+                        const isPaidToShow = order.isPaid || isPrepaidOrder;
+                        return isPaidToShow ? (
+                          <div className="flex flex-col gap-1 items-start">
+                            <span className="text-green-600 font-medium whitespace-nowrap">✓ Paid</span>
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold w-fit whitespace-nowrap ${
+                              order.paymentMethod === 'Cash on Delivery' || order.paymentMethod?.toLowerCase().includes('delivery')
+                                ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                : 'bg-blue-50 text-blue-700 border border-blue-200'
+                            }`}>
+                              {order.paymentMethod === 'Cash on Delivery' || order.paymentMethod?.toLowerCase().includes('delivery') ? 'Paid on Delivery' : 'Prepaid'}
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-start gap-1">
+                            <span className="text-red-500 font-medium whitespace-nowrap">✗ Unpaid</span>
+                            <span className={`text-[9px] px-1.5 py-0.5 rounded font-bold w-fit whitespace-nowrap ${
+                              order.paymentMethod === 'Cash on Delivery' || order.paymentMethod?.toLowerCase().includes('delivery')
+                                ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                : 'bg-blue-50 text-blue-700 border border-blue-200'
+                            }`}>
+                              {order.paymentMethod === 'Cash on Delivery' || order.paymentMethod?.toLowerCase().includes('delivery') ? 'Paid on Delivery' : 'Prepaid'}
+                            </span>
+                            {userInfo?.isDeliveryAgent && (
+                              <button
+                                onClick={() => markAsPaidHandler(order._id)}
+                                className="text-[10px] bg-brand-500 text-white px-2 py-0.5 rounded hover:bg-brand-600 whitespace-nowrap"
+                              >
+                                Mark Paid
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })()}
+                   </td>
                    {!userInfo?.isDeliveryAgent && (
-                    <td className="px-4 py-3 align-top">
+                    <td className="px-4 py-2.5 align-middle">
                       <div className="flex flex-col items-start gap-1">
                          <span className="text-xs font-semibold text-slate-700 whitespace-nowrap">
                            {order.deliveryAgent ? order.deliveryAgent.name : 'Unassigned'}
@@ -208,7 +223,7 @@ const OrderListScreen = () => {
                       </div>
                     </td>
                   )}
-                  <td className="px-4 py-3 align-top">
+                  <td className="px-4 py-2.5 align-middle">
                     {order.isRefunded || order.returnStatus ? (
                       (() => {
                         let displayStatus = order.status;
@@ -255,7 +270,7 @@ const OrderListScreen = () => {
                     )}
                   </td>
                   {!userInfo?.isDeliveryAgent && (
-                     <td className="px-4 py-3">
+                     <td className="px-4 py-2.5 align-middle">
                        <Link to={`/order/${order._id}`} className="font-medium text-brand-600 hover:underline whitespace-nowrap">
                          View
                        </Link>

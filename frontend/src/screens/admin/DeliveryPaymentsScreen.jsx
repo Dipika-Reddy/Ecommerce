@@ -85,8 +85,8 @@ const DeliveryPaymentsScreen = () => {
                   <tbody>
                     {unpaidOrders.map((order) => (
                       <tr key={order._id} className="border-t">
-                        <td className="px-4 py-3 font-mono text-xs align-top">{order._id.slice(-8)}</td>
-                        <td className="px-4 py-3 align-top">
+                        <td className="px-4 py-2.5 font-mono text-xs align-middle">{order._id.slice(-8)}</td>
+                        <td className="px-4 py-2.5 align-middle">
                           <div className="font-bold">{order.user?.name || 'Deleted user'}</div>
                           {order.user?.phoneNumber && (
                             <div className="text-xs text-gray-500 mt-0.5">📞 {order.user.phoneNumber}</div>
@@ -97,7 +97,7 @@ const DeliveryPaymentsScreen = () => {
                             </div>
                           )}
                         </td>
-                        <td className="px-4 py-3 align-top">
+                        <td className="px-4 py-2.5 align-middle">
                            <span className={`text-xs px-2 py-1 rounded-full font-bold inline-block ${
                              order.paymentMethod === 'Cash on Delivery' || order.paymentMethod?.toLowerCase().includes('delivery')
                                ? 'bg-amber-100 text-amber-700'
@@ -106,10 +106,10 @@ const DeliveryPaymentsScreen = () => {
                              {order.paymentMethod === 'Cash on Delivery' || order.paymentMethod?.toLowerCase().includes('delivery') ? 'Paid on Delivery' : 'Prepaid'}
                            </span>
                         </td>
-                        <td className="px-4 py-3 align-top font-bold text-gray-900">
+                        <td className="px-4 py-2.5 align-middle font-bold text-gray-900">
                           ₹{order.totalPrice.toFixed(2)}
                         </td>
-                        <td className="px-4 py-3 align-top">
+                        <td className="px-4 py-2.5 align-middle">
                           <input
                             type="number"
                             step="0.01"
@@ -118,7 +118,7 @@ const DeliveryPaymentsScreen = () => {
                             onChange={(e) => handleAmountChange(order._id, e.target.value)}
                           />
                         </td>
-                        <td className="px-4 py-3 align-top">
+                        <td className="px-4 py-2.5 align-middle">
                           <div className="w-40">
                             <CustomSelect
                               value={paymentMethods[order._id] || 'Cash on Delivery'}
@@ -127,7 +127,7 @@ const DeliveryPaymentsScreen = () => {
                             />
                           </div>
                         </td>
-                        <td className="px-4 py-3 align-top">
+                        <td className="px-4 py-2.5 align-middle">
                           <button
                             type="button"
                             disabled={isPaying}
@@ -164,23 +164,30 @@ const DeliveryPaymentsScreen = () => {
                   <tbody>
                     {paidOrders.map((order) => (
                       <tr key={order._id} className="border-t bg-gray-50">
-                        <td className="px-4 py-3 font-mono text-xs text-gray-600">{order._id.slice(-8)}</td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-2.5 font-mono text-xs text-gray-600 align-middle">{order._id.slice(-8)}</td>
+                        <td className="px-4 py-2.5 align-middle">
                           <div className="font-semibold text-gray-700">{order.user?.name || 'Deleted user'}</div>
                         </td>
-                        <td className="px-4 py-3">
-                           <span className={`text-xs px-2 py-1 rounded-full font-bold inline-block ${
-                             order.paymentMethod === 'Cash on Delivery' || order.paymentMethod?.toLowerCase().includes('delivery')
-                               ? 'bg-amber-100 text-amber-700'
-                               : 'bg-blue-100 text-blue-700'
-                           }`}>
-                             {order.paymentMethod === 'Cash on Delivery' || order.paymentMethod?.toLowerCase().includes('delivery') ? 'Paid on Delivery' : 'Prepaid'}
-                           </span>
+                        <td className="px-4 py-2.5 align-middle">
+                          <div className="flex flex-col gap-1 items-start">
+                            <span className={`text-xs px-2 py-1 rounded-full font-bold inline-block ${
+                              order.paymentMethod === 'Cash on Delivery' || order.paymentMethod?.toLowerCase().includes('delivery')
+                                ? 'bg-amber-100 text-amber-700'
+                                : 'bg-blue-100 text-blue-700'
+                            }`}>
+                              {order.paymentMethod === 'Cash on Delivery' || order.paymentMethod?.toLowerCase().includes('delivery') ? 'Paid on Delivery' : 'Prepaid'}
+                            </span>
+                            {(order.paymentMethod === 'Cash on Delivery' || order.paymentMethod?.toLowerCase().includes('delivery')) && (
+                              <span className="text-[10px] text-gray-500 font-semibold bg-gray-50 border border-gray-150 rounded px-1.5 py-0.5 w-fit whitespace-nowrap">
+                                {order.paymentMethod}
+                              </span>
+                            )}
+                          </div>
                         </td>
-                        <td className="px-4 py-3 font-bold text-green-600">
+                        <td className="px-4 py-2.5 font-bold text-green-600 align-middle">
                           ₹{order.totalPrice.toFixed(2)}
                         </td>
-                        <td className="px-4 py-3 text-gray-500">
+                        <td className="px-4 py-2.5 text-gray-500 align-middle">
                           {order.paidAt ? new Date(order.paidAt).toLocaleDateString() : 'N/A'}
                         </td>
                       </tr>

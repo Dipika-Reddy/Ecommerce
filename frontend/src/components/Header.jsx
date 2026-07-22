@@ -71,24 +71,24 @@ const Header = () => {
     }
   };
 
-  // Navigates to homepage and filters by selected category from the subbar
   const handleCategoryFilter = (cat) => {
     if (cat === 'All') {
       navigate('/home');
     } else {
-      navigate(`/home?category=${encodeURIComponent(cat)}`);
+      navigate(`/home?category=${encodeURIComponent(cat)}&mode=category`);
     }
   };
 
-  // Parse active category from URL to highlight it in the sub-navbar
+  // Parse active category from URL to highlight it in the sub-navbar only when on a dedicated category page
   const activeParams = new URLSearchParams(location.search);
-  const activeCategory = activeParams.get('category') || 'All';
+  const mode = activeParams.get('mode');
+  const activeCategory = mode === 'category' ? (activeParams.get('category') || 'All') : 'All';
 
   return (
     <header className="sticky top-0 z-50 flex flex-col shadow-sm border-b border-slate-200">
       {/* --- Top Nav Row (buybee Light Theme) --- */}
       <div className="bg-white/95 backdrop-blur-md text-slate-800">
-        <div className="mx-auto flex max-w-7xl items-center justify-between gap-2 sm:gap-4 px-3 sm:px-4 py-2.5 sm:py-3 min-w-0">
+        <div className="flex w-full max-w-full items-center justify-between gap-2 sm:gap-4 px-4 sm:px-6 py-2.5 sm:py-3 min-w-0">
           {/* Logo */}
           <Link to={isSupport ? "/support/orders" : "/home"} className="flex items-center gap-1.5 sm:gap-2 px-1 sm:px-2 py-1 rounded border border-transparent hover:bg-slate-50 transition-colors duration-150 shrink-0 min-w-0">
             <svg viewBox="0 0 100 100" className="w-8 h-8 hover:scale-105 transition-transform" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -180,12 +180,9 @@ const Header = () => {
               </Link>
             )}
 
-            {/* Account dropdown — hidden on mobile (use footer bar instead) */}
-            <div className="hidden md:relative md:flex items-center" ref={dropdownRef}>
-              <button
-                onClick={() => setDropdownOpen((o) => !o)}
-                className="flex items-center gap-2 text-left px-2.5 py-1.5 rounded border border-transparent hover:bg-slate-50 transition-colors duration-150 text-slate-700"
-              >
+            {isManagement ? (
+              /* Account Display Only (Dropdown Removed) */
+              <div className="hidden md:flex items-center gap-2 px-2.5 py-1.5 text-slate-700">
                 {/* Circular Profile Avatar */}
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-500 text-white font-extrabold text-sm border border-orange-600 shadow-sm shrink-0">
                   {userInfo ? userInfo.name.charAt(0).toUpperCase() : (
@@ -194,180 +191,81 @@ const Header = () => {
                     </svg>
                   )}
                 </div>
-                <div className="flex flex-col">
+                <div className="flex flex-col select-none">
                   <span className="text-[11px] leading-tight text-slate-500 font-medium">
-                    Hello, {userInfo ? userInfo.name.split(' ')[0] : 'Sign In'}
+                    Hello, {userInfo ? userInfo.name.split(' ')[0] : 'Guest'}
                   </span>
-                  <span className="text-xs font-bold leading-tight flex items-center gap-0.5">
-                    Account & Lists <span className="text-[9px] text-slate-400">▼</span>
+                  <span className="text-xs font-bold leading-tight text-slate-700">
+                    {userInfo ? 'Account Active' : 'Sign In'}
                   </span>
                 </div>
-              </button>
-
-              {dropdownOpen && (
-                <div className="absolute right-0 top-full mt-2 w-52 max-w-[calc(100vw-1rem)] rounded-xl bg-white py-2 text-slate-800 shadow-2xl z-[100] border border-slate-200 animate-scale-in overflow-hidden">
-                  <div className="px-4 py-2 border-b border-slate-100">
-                    <p className="text-xs text-slate-400">Your Account</p>
-                    {userInfo ? (
-                      <p className="text-sm font-semibold truncate text-slate-800">{userInfo.name}</p>
-                    ) : (
-                      <Link
-                        to="/login"
-                        className="mt-1 block text-center bg-brand-500 hover:bg-brand-600 py-1.5 rounded-lg text-xs font-bold text-white shadow-sm transition"
-                        onClick={() => setDropdownOpen(false)}
-                      >
-                        Sign In
-                      </Link>
+              </div>
+            ) : (
+              /* Account dropdown — active only for buyers/guests */
+              <div className="hidden md:relative md:flex items-center" ref={dropdownRef}>
+                <button
+                  onClick={() => setDropdownOpen((o) => !o)}
+                  className="flex items-center gap-2 text-left px-2.5 py-1.5 rounded border border-transparent hover:bg-slate-50 transition-colors duration-150 text-slate-700"
+                >
+                  {/* Circular Profile Avatar */}
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-orange-500 text-white font-extrabold text-sm border border-orange-600 shadow-sm shrink-0">
+                    {userInfo ? userInfo.name.charAt(0).toUpperCase() : (
+                      <svg className="h-4.5 w-4.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
                     )}
                   </div>
-
-                  <div className="py-1">
-                    <Link
-                      to="/profile"
-                      className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
-                      onClick={() => setDropdownOpen(false)}
-                    >
-                      Your Profile
-                    </Link>
+                  <div className="flex flex-col">
+                    <span className="text-[11px] leading-tight text-slate-500 font-medium">
+                      Hello, {userInfo ? userInfo.name.split(' ')[0] : 'Sign In'}
+                    </span>
+                    <span className="text-xs font-bold leading-tight flex items-center gap-0.5">
+                      Account & Lists <span className="text-[9px] text-slate-400">▼</span>
+                    </span>
                   </div>
+                </button>
 
-                  {isApprovedSeller(userInfo) && (
-                    <div className="border-t border-slate-100 pt-1 mt-1 bg-slate-50/50">
-                      <div className="px-4 pt-1 pb-0.5">
-                        <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
-                          Seller Controls
-                        </p>
+                {dropdownOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-52 max-w-[calc(100vw-1rem)] rounded-xl bg-white py-2 text-slate-800 shadow-2xl z-[100] border border-slate-200 animate-scale-in overflow-hidden">
+                    <div className="px-4 py-2 border-b border-slate-100">
+                      <p className="text-xs text-slate-400">Your Account</p>
+                      {userInfo ? (
+                        <p className="text-sm font-semibold truncate text-slate-800">{userInfo.name}</p>
+                      ) : (
+                        <Link
+                          to="/login"
+                          className="mt-1 block text-center bg-brand-500 hover:bg-brand-600 py-1.5 rounded-lg text-xs font-bold text-white shadow-sm transition"
+                          onClick={() => setDropdownOpen(false)}
+                        >
+                          Sign In
+                        </Link>
+                      )}
+                    </div>
+
+                    <div className="py-1">
+                      <Link
+                        to="/profile"
+                        className="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                        onClick={() => setDropdownOpen(false)}
+                      >
+                        Your Profile
+                      </Link>
+                    </div>
+
+                    {userInfo && (
+                      <div className="border-t border-slate-100 pt-1 mt-1">
+                        <button
+                          onClick={logoutHandler}
+                          className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-slate-50 font-medium"
+                        >
+                          Sign Out
+                        </button>
                       </div>
-                      <Link
-                        to="/seller/productlist"
-                        className="block px-4 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-                        onClick={() => setDropdownOpen(false)}
-                      >
-                        Manage Products
-                      </Link>
-                      <Link
-                        to="/seller/orderlist"
-                        className="block px-4 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-                        onClick={() => setDropdownOpen(false)}
-                      >
-                        Manage Orders
-                      </Link>
-                      <Link
-                        to="/seller/paymentlist"
-                        className="block px-4 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-                        onClick={() => setDropdownOpen(false)}
-                      >
-                        Manage Payments
-                      </Link>
-                    </div>
-                  )}
-
-                  {isDelivery && (
-                    <div className="border-t border-slate-100 pt-1 mt-1 bg-slate-50/50">
-                      <div className="px-4 pt-1 pb-0.5">
-                        <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
-                          Delivery Controls
-                        </p>
-                      </div>
-                      <Link
-                        to="/delivery/orderlist"
-                        className="block px-4 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-                        onClick={() => setDropdownOpen(false)}
-                      >
-                        Manage Orders
-                      </Link>
-                      <Link
-                        to="/delivery/paymentlist"
-                        className="block px-4 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-                        onClick={() => setDropdownOpen(false)}
-                      >
-                        Manage Payments
-                      </Link>
-                    </div>
-                  )}
-
-                  {isSupport && (
-                    <div className="border-t border-slate-100 pt-1 mt-1 bg-slate-50/50">
-                      <div className="px-4 pt-1 pb-0.5">
-                        <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
-                          Support Controls
-                        </p>
-                      </div>
-                      <Link
-                        to="/support/orders"
-                        className="block px-4 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-                        onClick={() => setDropdownOpen(false)}
-                      >
-                        Help Desk Orders
-                      </Link>
-                    </div>
-                  )}
-
-                  {(isPlatformAdmin(userInfo) || isSuperAdminUser(userInfo)) && (
-                    <div className="border-t border-slate-100 pt-1 mt-1 bg-slate-50/50">
-                      <div className="px-4 pt-1 pb-0.5">
-                        <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">
-                          {isSuperAdminUser(userInfo) ? 'Superadmin Controls' : 'Admin Controls'}
-                        </p>
-                      </div>
-                      <Link
-                        to={`${getStaffBasePath(userInfo)}/userlist`}
-                        className="block px-4 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-                        onClick={() => setDropdownOpen(false)}
-                      >
-                        Manage Users
-                      </Link>
-                      <Link
-                        to={`${getStaffBasePath(userInfo)}/verifysellers`}
-                        className="block px-4 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-                        onClick={() => setDropdownOpen(false)}
-                      >
-                        Verify Users
-                      </Link>
-                      <Link
-                        to={`${getStaffBasePath(userInfo)}/couponlist`}
-                        className="block px-4 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-                        onClick={() => setDropdownOpen(false)}
-                      >
-                        Manage Coupons
-                      </Link>
-                      <Link
-                        to="/seller/productlist"
-                        className="block px-4 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-                        onClick={() => setDropdownOpen(false)}
-                      >
-                        Manage Products
-                      </Link>
-                      <Link
-                        to="/seller/orderlist"
-                        className="block px-4 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-                        onClick={() => setDropdownOpen(false)}
-                      >
-                        Manage Orders
-                      </Link>
-                      <Link
-                        to="/seller/paymentlist"
-                        className="block px-4 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-                        onClick={() => setDropdownOpen(false)}
-                      >
-                        Manage Payments
-                      </Link>
-                    </div>
-                  )}
-
-                  {userInfo && (
-                    <div className="border-t border-slate-100 pt-1 mt-1">
-                      <button
-                        onClick={logoutHandler}
-                        className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-slate-50 font-medium"
-                      >
-                        Sign Out
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>

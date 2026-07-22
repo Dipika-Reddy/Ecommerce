@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import { isApprovedSeller, isPlatformAdmin, isSuperAdminUser, isSellerUser } from './utils/userRoles';
 
@@ -12,6 +12,7 @@ import SellerRoute from './components/SellerRoute';
 import DeliveryRoute from './components/DeliveryRoute';
 import SupportRoute from './components/SupportRoute';
 import SupportCallPanel from './components/SupportCallPanel';
+import Sidebar from './components/Sidebar';
 
 // Landing & auth (bare layout — no shared Header/Footer)
 import LandingScreen from './screens/LandingScreen';
@@ -48,15 +49,38 @@ import DeliveryPaymentsScreen from './screens/admin/DeliveryPaymentsScreen';
 import UserListScreen from './screens/admin/UserListScreen';
 import VerifySellersScreen from './screens/admin/VerifySellersScreen';
 import CouponListScreen from './screens/admin/CouponListScreen';
+import CallHistoryScreen from './screens/admin/CallHistoryScreen';
 
-const StandardLayout = ({ children }) => (
-  <div className="flex min-h-screen flex-col">
-    <Header />
-    <main className="flex-1">{children}</main>
-    <Footer />
-    <MobileFooterBar />
-  </div>
-);
+// Support screens
+import HelplineScreen from './screens/support/HelplineScreen';
+
+const StandardLayout = ({ children }) => {
+  const location = useLocation();
+  const { userInfo } = useSelector((state) => state.auth);
+
+  // Check if current user is staff/delivery agent and is on a staff/profile page
+  const isStaffUser = userInfo && (
+    isApprovedSeller(userInfo) ||
+    isPlatformAdmin(userInfo) ||
+    isSuperAdminUser(userInfo) ||
+    userInfo.isDeliveryAgent ||
+    userInfo.isSupport
+  );
+
+  const showSidebar = !!isStaffUser;
+
+  return (
+    <div className="flex min-h-screen flex-col bg-slate-50/30">
+      <Header />
+      <div className="flex-1 flex w-full max-w-full items-start">
+        {showSidebar && <Sidebar />}
+        <main className="flex-1 min-w-0 w-full">{children}</main>
+      </div>
+      <Footer />
+      <MobileFooterBar />
+    </div>
+  );
+};
 
 const App = () => {
   const { userInfo } = useSelector((state) => state.auth);
@@ -141,6 +165,7 @@ const App = () => {
         <Route path="/admin/userlist" element={<StandardLayout><UserListScreen /></StandardLayout>} />
         <Route path="/admin/verifysellers" element={<StandardLayout><VerifySellersScreen /></StandardLayout>} />
         <Route path="/admin/couponlist" element={<StandardLayout><CouponListScreen /></StandardLayout>} />
+        <Route path="/admin/call-history" element={<StandardLayout><CallHistoryScreen /></StandardLayout>} />
       </Route>
 
       {/* Super admin dashboard (same pages as admin) */}
@@ -148,12 +173,14 @@ const App = () => {
         <Route path="/superadmin/userlist" element={<StandardLayout><UserListScreen /></StandardLayout>} />
         <Route path="/superadmin/verifysellers" element={<StandardLayout><VerifySellersScreen /></StandardLayout>} />
         <Route path="/superadmin/couponlist" element={<StandardLayout><CouponListScreen /></StandardLayout>} />
+        <Route path="/superadmin/call-history" element={<StandardLayout><CallHistoryScreen /></StandardLayout>} />
       </Route>
       {/* Support Team dashboard */}
       <Route element={<SupportRoute />}>
         <Route path="/support/orders" element={<StandardLayout><OrderListScreen /></StandardLayout>} />
         <Route path="/support/userlist" element={<StandardLayout><UserListScreen /></StandardLayout>} />
         <Route path="/support/verifysellers" element={<StandardLayout><VerifySellersScreen /></StandardLayout>} />
+        <Route path="/support/helpline" element={<StandardLayout><HelplineScreen /></StandardLayout>} />
       </Route>
     </Routes>
     <SupportCallPanel />

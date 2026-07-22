@@ -35,10 +35,10 @@ const HomeScreen = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  // Read filters from URL query string (reactive — updates on URL change)
   const category = searchParams.get('category') || 'All';
   const subCategory = searchParams.get('subCategory') || 'All';
   const sortBy   = searchParams.get('sortBy')   || 'newest';
+  const mode     = searchParams.get('mode');
 
   // ── Infinite scroll state ──────────────────────────────────────
   const [page, setPage]             = useState(1);
@@ -57,7 +57,10 @@ const HomeScreen = () => {
     sortBy,
     pageNumber: page,
   });
-  const { data: categories } = useGetProductCategoriesQuery(category);
+  const { data: mainCategories } = useGetProductCategoriesQuery('All');
+  const { data: subCategories } = useGetProductCategoriesQuery(category, {
+    skip: category === 'All',
+  });
 
   // ── Reset accumulator when any filter / search / sort changes ──
   useEffect(() => {
@@ -165,7 +168,7 @@ const HomeScreen = () => {
     navigate(`${window.location.pathname}?${params.toString()}`);
   };
 
-  const isUnfiltered = !keyword && category === 'All';
+  const isUnfiltered = !keyword && mode !== 'category';
 
   // ── Render ─────────────────────────────────────────────────────
   return (
@@ -341,8 +344,8 @@ const HomeScreen = () => {
           </div>
         )}
 
-        {/* ── Back button for active filters ─────────────────────── */}
-        {(keyword || category !== 'All') && (
+        {/* ── Back button for search keyword queries ─────────────────── */}
+        {keyword && (
           <div className="mt-4 mb-4">
             <Link to="/home" className="inline-flex items-center gap-1 text-sm font-semibold text-teal-700 hover:text-red-700 hover:underline">
               ← Back to all products
@@ -364,24 +367,53 @@ const HomeScreen = () => {
             </h2>
 
             <div className="flex flex-wrap items-center gap-3 text-xs font-semibold">
-              {/* Category selector */}
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="text-gray-500 shrink-0">{category !== 'All' ? 'Subcategory:' : 'Category:'}</span>
-                <CustomSelect
-                  value={category !== 'All' ? subCategory : category}
-                  onChange={(v) => {
-                    if (category !== 'All') {
-                      updateQuery('subCategory', v);
-                    } else {
-                      updateQuery('category', v);
+              {/* Main Category selector (shown on Homepage deals view) */}
+              {(mode !== 'category' || category === 'All') && (
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-gray-500 shrink-0">Category:</span>
+                  <CustomSelect
+                    value={category}
+                    onChange={(v) => updateQuery('category', v)}
+                    options={[
+                      { value: 'All', label: 'All Categories' },
+                      ...(mainCategories || []).map((cat) => ({ value: cat, label: cat })),
+                    ]}
+                  />
+                </div>
+              )}
+
+              {/* Subcategory selector (shown whenever a category is selected) */}
+              {category !== 'All' && subCategories && subCategories.length > 0 && (
+                <div className="flex items-center gap-2 min-w-0 animate-fade-in">
+                  <span className="text-gray-500 shrink-0">Subcategory:</span>
+                  <CustomSelect
+                    value={subCategory}
+                    onChange={(v) => updateQuery('subCategory', v)}
+                    options={[
+                      { value: 'All', label: 'All Subcategories' },
+                      ...subCategories.map((sub) => ({ value: sub, label: sub })),
+                    ]}
+                  />
+                </div>
+              )}
+
+              {/* Clear filter shortcut button */}
+              {((mode !== 'category' && (category !== 'All' || subCategory !== 'All')) || (mode === 'category' && subCategory !== 'All')) && (
+                <button
+                  onClick={() => {
+                    const params = new URLSearchParams(window.location.search);
+                    if (mode !== 'category') {
+                      params.delete('category');
                     }
+                    params.delete('subCategory');
+                    navigate(`${window.location.pathname}?${params.toString()}`);
                   }}
-                  options={[
-                    { value: 'All', label: category !== 'All' ? 'All Subcategories' : 'All Categories' },
-                    ...(categories || []).map((cat) => ({ value: cat, label: cat })),
-                  ]}
-                />
-              </div>
+                  className="text-xs text-red-600 hover:text-red-800 hover:underline font-semibold ml-1 flex items-center gap-1 animate-fade-in"
+                  title="Clear Filter"
+                >
+                  ✕ Clear Filter
+                </button>
+              )}
 
               {/* Sort selector */}
               <div className="flex items-center gap-2 min-w-0">

@@ -579,11 +579,12 @@ const approveReturn = asyncHandler(async (req, res) => {
   // Authorization Check
   const isSuperAdmin = req.user.isSuperAdmin;
   const isAdmin = req.user.isAdmin;
+  const isSupport = req.user.isSupport;
   const isSeller = order.orderItems.some(
     (item) => item.product && item.product.userId === req.user.id
   );
 
-  if (!isSuperAdmin && !isAdmin && !isSeller) {
+  if (!isSuperAdmin && !isAdmin && !isSeller && !isSupport) {
     logSecurity('UNAUTHORIZED_RETURN_APPROVAL_ATTEMPT', { userId: req.user.id, orderId: order.id });
     res.status(403);
     throw new Error('Not authorized to approve returns for this order');
@@ -598,6 +599,17 @@ const approveReturn = asyncHandler(async (req, res) => {
   });
 
   logSecurity('RETURN_APPROVED', { orderId: order.id, approvedBy: req.user.id });
+
+  if (isSupport) {
+    await prisma.supportActionLog.create({
+      data: {
+        orderId: order.id,
+        agentId: req.user.id,
+        action: 'Approve Return',
+        details: `Approved return request for order ${order.id.slice(-8)}`,
+      },
+    });
+  }
 
   res.json(formatOrder(updatedOrder));
 });
@@ -662,11 +674,12 @@ const processRefund = asyncHandler(async (req, res) => {
   // Authorization Check
   const isSuperAdmin = req.user.isSuperAdmin;
   const isAdmin = req.user.isAdmin;
+  const isSupport = req.user.isSupport;
   const isSeller = order.orderItems.some(
     (item) => item.product && item.product.userId === req.user.id
   );
 
-  if (!isSuperAdmin && !isAdmin && !isSeller) {
+  if (!isSuperAdmin && !isAdmin && !isSeller && !isSupport) {
     logSecurity('UNAUTHORIZED_REFUND_ATTEMPT', { userId: req.user.id, orderId: order.id });
     res.status(403);
     throw new Error('Not authorized to process refunds for this order');
@@ -686,6 +699,17 @@ const processRefund = asyncHandler(async (req, res) => {
   });
 
   logSecurity('REFUND_PROCESSED', { orderId: order.id, processedBy: req.user.id });
+
+  if (isSupport) {
+    await prisma.supportActionLog.create({
+      data: {
+        orderId: order.id,
+        agentId: req.user.id,
+        action: 'Process Refund',
+        details: `Processed refund of order total ₹${order.totalPrice.toFixed(2)}`,
+      },
+    });
+  }
 
   res.json(formatOrder(updatedOrder));
 });
@@ -748,6 +772,17 @@ const assignDeliveryAgent = asyncHandler(async (req, res) => {
   });
 
   logSecurity('DELIVERY_AGENT_ASSIGNED', { orderId: order.id, agentId: deliveryAgentId, assignedBy });
+
+  if (isSupport) {
+    await prisma.supportActionLog.create({
+      data: {
+        orderId: order.id,
+        agentId: req.user.id,
+        action: 'Assign Delivery Agent',
+        details: `Assigned delivery agent ${agent.name} (${agent.email})`,
+      },
+    });
+  }
 
   res.json(formatOrder(updatedOrder));
 });
