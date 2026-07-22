@@ -22,6 +22,8 @@ const Header = () => {
   const [logoutApiCall] = useLogoutMutation();
   const { data: categories } = useGetProductCategoriesQuery();
 
+  const isManagement = userInfo && (isApprovedSeller(userInfo) || isPlatformAdmin(userInfo) || isSuperAdminUser(userInfo));
+
   const [searchCategory, setSearchCategory] = useState('All');
   const [searchKeyword, setSearchKeyword] = useState('');
   const [dropdownOpen, setDropdownOpen] = useState(false);

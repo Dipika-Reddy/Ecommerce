@@ -3,35 +3,14 @@ import { useDispatch, useSelector } from 'react-redux';
 import { toast } from 'react-toastify';
 import { addToCart } from '../features/cart/cartSlice';
 import Rating from './Rating';
-import { Heart } from 'lucide-react';
-import { isApprovedSeller, isPlatformAdmin, isSuperAdminUser, isDeliveryAgent } from '../utils/userRoles';
-import { addToWishlist, removeFromWishlist } from '../features/wishlist/wishlistSlice';
+import { isApprovedSeller, isPlatformAdmin, isSuperAdminUser } from '../utils/userRoles';
+
 const Product = ({ product }) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
   const { userInfo } = useSelector((state) => state.auth);
-  const { wishlistItems } = useSelector((state) => state.wishlist);
-  const isManagement = userInfo && (isApprovedSeller(userInfo) || isPlatformAdmin(userInfo) || isSuperAdminUser(userInfo) || isDeliveryAgent(userInfo));
-  
-  const inWishlist = wishlistItems.some((item) => item._id === product._id);
-
-  const toggleWishlist = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (inWishlist) {
-      dispatch(removeFromWishlist(product._id));
-      toast.info('Removed from wishlist');
-    } else {
-      dispatch(addToWishlist({
-        _id: product._id,
-        name: product.name,
-        image: product.images?.[0] || '/uploads/seed/placeholder.jpg',
-        price: product.price,
-      }));
-      toast.success('Added to wishlist');
-    }
-  };
+  const isManagement = userInfo && (isApprovedSeller(userInfo) || isPlatformAdmin(userInfo) || isSuperAdminUser(userInfo));
 
   // Simulate an original price and a discount (e.g., 20% off)
   const originalPrice = product.price * 1.25;

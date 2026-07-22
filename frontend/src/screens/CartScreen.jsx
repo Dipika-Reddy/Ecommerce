@@ -1,13 +1,10 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, Navigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
 import { removeFromCart, updateQty, applyCoupon, removeCoupon } from '../features/cart/cartSlice';
 import { useGetCouponsQuery, useValidateCouponMutation } from '../features/api/couponsApiSlice';
 import Message from '../components/Message';
 import CustomSelect from '../components/CustomSelect';
-import Loader from '../components/Loader';
 import { isApprovedSeller, isPlatformAdmin, isSuperAdminUser } from '../utils/userRoles';
-import { toast } from 'react-toastify';
 
 const CartScreen = () => {
   const dispatch = useDispatch();
@@ -17,13 +14,8 @@ const CartScreen = () => {
     (state) => state.cart
   );
   const { userInfo } = useSelector((state) => state.auth);
-  const isManagement = userInfo && (isApprovedSeller(userInfo) || isPlatformAdmin(userInfo) || isSuperAdminUser(userInfo) || userInfo.isDeliveryAgent);
-
-  const [couponCode, setCouponCode] = useState('');
-  const [showCouponsModal, setShowCouponsModal] = useState(false);
-
-  const { data: coupons, isLoading: loadingCoupons } = useGetCouponsQuery();
-  const [validateCoupon, { isLoading: loadingValidate }] = useValidateCouponMutation();
+  
+  const isManagement = userInfo && (isApprovedSeller(userInfo) || isPlatformAdmin(userInfo) || isSuperAdminUser(userInfo));
 
   const updateQtyHandler = (item, qty) => {
     dispatch(updateQty({ id: item._id, size: item.size, color: item.color, qty: Number(qty) }));
@@ -60,6 +52,10 @@ const CartScreen = () => {
     // Checkout wizard step 1: Shipping Address. Login is required to check out.
     navigate(userInfo ? '/shipping' : '/login?redirect=/shipping');
   };
+
+  if (isManagement) {
+    return <Navigate to="/" replace />;
+  }
 
   return (
     <div className="mx-auto max-w-7xl px-4 py-6">

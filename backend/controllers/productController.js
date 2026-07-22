@@ -65,13 +65,19 @@ const getProducts = asyncHandler(async (req, res) => {
       orderBy = { createdAt: 'desc' };
   }
 
-  const allProducts = await prisma.product.findMany({
-    where,
-    orderBy,
-    include: {
-      user: {
-        select: {
-          name: true,
+  const [count, products] = await Promise.all([
+    prisma.product.count({ where }),
+    prisma.product.findMany({
+      where,
+      orderBy,
+      distinct: ['name'],
+      take: pageSize,
+      skip: pageSize * (page - 1),
+      include: {
+        user: {
+          select: {
+            name: true,
+          },
         },
       },
     },
@@ -378,7 +384,8 @@ const getTopProducts = asyncHandler(async (req, res) => {
     orderBy: {
       rating: 'desc',
     },
-    take: 20,
+    distinct: ['name'],
+    take: 5,
   });
 
   const distinctProducts = [];

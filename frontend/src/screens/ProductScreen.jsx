@@ -20,12 +20,14 @@ const ProductScreen = () => {
   const dispatch = useDispatch();
 
   const { userInfo } = useSelector((state) => state.auth);
-  const isManagement = userInfo && (isApprovedSeller(userInfo) || isPlatformAdmin(userInfo) || isSuperAdminUser(userInfo) || userInfo.isDeliveryAgent);
+  const isManagement = userInfo && (isApprovedSeller(userInfo) || isPlatformAdmin(userInfo) || isSuperAdminUser(userInfo));
 
   const { data: product, isLoading, error, refetch } = useGetProductDetailsQuery(productId);
   const [createReview, { isLoading: loadingReview }] = useCreateReviewMutation();
 
   const [activeImage, setActiveImage] = useState(0);
+  const [zoomStyle, setZoomStyle] = useState({ transformOrigin: 'center center' });
+  const [isZoomed, setIsZoomed] = useState(false);
   const [qty, setQty] = useState(1);
   const [size, setSize] = useState('');
   const [color, setColor] = useState('');
@@ -230,6 +232,14 @@ const ProductScreen = () => {
     } catch (err) {
       toast.error(err?.data?.message || 'Failed to submit review');
     }
+  };
+
+  // --- Image Zoom handler ---
+  const handleMouseMove = (e) => {
+    const { left, top, width, height } = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - left) / width) * 100;
+    const y = ((e.clientY - top) / height) * 100;
+    setZoomStyle({ transformOrigin: `${x}% ${y}%` });
   };
 
   if (isLoading) return <Loader />;
@@ -443,7 +453,7 @@ const ProductScreen = () => {
         {!isManagement && (
           <div>
             <h2 className="mb-4 text-xl font-bold text-gray-800">Write a Review</h2>
-            {userInfo ? (
+          {userInfo ? (
             <form onSubmit={submitReviewHandler} className="space-y-3 rounded-md border p-4">
               <div>
                 <label className="mb-1 block text-sm font-medium text-gray-700">Rating</label>
