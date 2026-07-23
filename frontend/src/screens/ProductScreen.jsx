@@ -26,8 +26,6 @@ const ProductScreen = () => {
   const [createReview, { isLoading: loadingReview }] = useCreateReviewMutation();
 
   const [activeImage, setActiveImage] = useState(0);
-  const [zoomStyle, setZoomStyle] = useState({ transformOrigin: 'center center' });
-  const [isZoomed, setIsZoomed] = useState(false);
   const [qty, setQty] = useState(1);
   const [size, setSize] = useState('');
   const [color, setColor] = useState('');
@@ -234,13 +232,7 @@ const ProductScreen = () => {
     }
   };
 
-  // --- Image Zoom handler ---
-  const handleMouseMove = (e) => {
-    const { left, top, width, height } = e.currentTarget.getBoundingClientRect();
-    const x = ((e.clientX - left) / width) * 100;
-    const y = ((e.clientY - top) / height) * 100;
-    setZoomStyle({ transformOrigin: `${x}% ${y}%` });
-  };
+
 
   if (isLoading) return <Loader />;
   if (error)
